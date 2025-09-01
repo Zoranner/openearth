@@ -1,25 +1,14 @@
-# 依赖目录
-node_modules/
-
-# 锁文件
-bun.lock
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-
 # 构建输出
 dist/
 build/
 .output/
 .cache/
 
-# TypeScript 编译输出
-*.tsbuildinfo
-.tscache/
+# 依赖目录
+node_modules/
 
-# Vite 相关
-.vite/
-vite.config.*.timestamp-*
+# 参考项目目录
+refs/
 
 # 测试覆盖率
 coverage/
@@ -40,46 +29,16 @@ tmp/
 temp/
 
 # 压缩文件
-*.min.js
-*.min.css
-*.min.map
+**/*.min.js
+**/*.min.css
 
-# 3D 模型和资源文件（通常不需要格式化）
-*.babylon
-*.gltf
-*.glb
-*.fbx
-*.obj
-*.mtl
-*.dae
+# 锁文件
+bun.lock
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
-# 图像和媒体文件
-*.png
-*.jpg
-*.jpeg
-*.gif
-*.bmp
-*.ico
-*.svg
-*.webp
-*.mp3
-*.wav
-*.mp4
-*.avi
-
-# 文档文件
-*.pdf
-*.doc
-*.docx
-
-# 示例和参考文件
-refs/
-examples/*.html
-
-# 生成的类型定义
-*.d.ts
-
-# 配置文件（可选择性忽略）
-# *.config.js
-# *.config.mjs
-# *.config.ts
+# 环境文件
+.env
+.env.local
+.env.*.local

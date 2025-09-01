@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenEarth - 3D 地球可视化库</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            padding: 40px 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            color: #4CAF50;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header p {
+            margin: 10px 0 0 0;
+            font-size: 1.2em;
+            color: #ccc;
+        }
+
+        .container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .example-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .example-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .example-card h3 {
+            margin: 0 0 15px 0;
+            font-size: 1.5em;
+            color: #4CAF50;
+        }
+
+        .example-card p {
+            margin: 0 0 20px 0;
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        .example-card .features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .feature-tag {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .view-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .view-button:hover {
+            background: #45a049;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            color: #ccc;
+        }
+
+        .footer a {
+            color: #4CAF50;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .environment-info {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 0.9em;
+        }
+
+        .env-dev {
+            color: #4CAF50;
+        }
+
+        .env-prod {
+            color: #ff9800;
+        }
+    </style>
+</head>
+<body>
+    <div class="environment-info">
+        <div id="envInfo">环境检测中...</div>
+        <div id="buildTime"></div>
+    </div>
+
+    <div class="header">
+        <h1>🌍 OpenEarth</h1>
+        <p>基于 Babylon.js 的 3D 地球可视化库</p>
+    </div>
+
+    <div class="container">
+        <div class="examples-grid">
+            <div class="example-card" onclick="openExample('examples/basic-globe.html')">
+                <h3>🌐 基础地球示例</h3>
+                <p>展示 OpenEarth 的核心功能，包括地球渲染、相机控制、瓦片加载等基础特性。</p>
+                <div class="features">
+                    <span class="feature-tag">地球渲染</span>
+                    <span class="feature-tag">相机控制</span>
+                    <span class="feature-tag">瓦片系统</span>
+                    <span class="feature-tag">地形优化</span>
+                </div>
+                <a href="examples/basic-globe.html" class="view-button">查看示例</a>
+            </div>
+
+            <div class="example-card" onclick="openExample('examples/simple-globe.html')">
+                <h3>🚀 简化配置示例</h3>
+                <p>类似 MapLibre 的配置风格，简单易用的 API 接口，快速上手 3D 地球开发。</p>
+                <div class="features">
+                    <span class="feature-tag">简化配置</span>
+                    <span class="feature-tag">快速上手</span>
+                    <span class="feature-tag">模块化设计</span>
+                    <span class="feature-tag">性能优化</span>
+                </div>
+                <a href="examples/simple-globe.html" class="view-button">查看示例</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>OpenEarth 是一个开源的 3D 地球可视化库，基于 Babylon.js 构建</p>
+        <p>查看 <a href="https://github.com/openglobus/openglobus" target="_blank">GitHub</a> | 阅读 <a href="docs/" target="_blank">文档</a></p>
+    </div>
+
+    <script>
+        // 检测当前环境
+        function detectEnvironment() {
+            const envInfo = document.getElementById('envInfo');
+            const buildTime = document.getElementById('buildTime');
+
+            // 检查是否在开发环境
+            if (typeof __DEV__ !== 'undefined' && __DEV__) {
+                envInfo.innerHTML = '<span class="env-dev">🟢 开发环境</span>';
+                envInfo.innerHTML += '<br>使用 src/ 源码';
+                buildTime.innerHTML = '实时编译';
+            } else {
+                envInfo.innerHTML = '<span class="env-prod">🟠 生产环境</span>';
+                envInfo.innerHTML += '<br>使用 dist/ 编译代码';
+                if (typeof __BUILD_TIME__ !== 'undefined') {
+                    buildTime.innerHTML = '构建时间: ' + new Date(__BUILD_TIME__).toLocaleString('zh-CN');
+                }
+            }
+        }
+
+        // 打开示例页面
+        function openExample(filename) {
+            window.open(filename, '_blank');
+        }
+
+        // 页面加载完成后检测环境
+        document.addEventListener('DOMContentLoaded', detectEnvironment);
+    </script>
+</body>
+</html>

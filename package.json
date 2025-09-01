@@ -1,17 +1,22 @@
 {
   "name": "@openglobus/babylon",
   "version": "1.0.0",
+  "type": "module",
   "description": "OpenGlobus rewritten with Babylon.js - A JavaScript library for interactive 3D maps and geospatial data visualization",
-  "main": "dist/index.js",
+  "main": "dist/index.esm.js",
   "module": "dist/index.esm.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.esm.js",
+      "require": "./dist/index.js"
+    }
+  },
   "scripts": {
     "dev": "vite --host --open",
     "start": "vite preview --host --open",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-    "test": "vitest",
-    "test:coverage": "vitest --coverage",
     "lint": "eslint . --ext .ts,.tsx,.js,.mjs",
     "lint:fix": "eslint . --ext .ts,.tsx,.js,.mjs --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md}\"",
@@ -42,34 +47,24 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",
-    "@types/node": "^20.19.11",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
-    "@vitest/coverage-v8": "^1.6.1",
-    "@vitest/ui": "^1.6.1",
+    "@types/node": "^24.3.0",
+    "@typescript-eslint/eslint-plugin": "^8.41.0",
+    "@typescript-eslint/parser": "^8.41.0",
+    "ajv": "^8.13.0",
     "eslint": "^9.34.0",
-    "eslint-config-prettier": "^9.1.2",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "jsdom": "^26.1.0",
     "prettier": "^3.6.2",
-    "rimraf": "^5.0.10",
+    "rimraf": "^6.0.1",
     "terser": "^5.43.1",
     "typescript": "^5.9.2",
     "vite": "^5.4.19",
-    "vite-plugin-dts": "^3.9.1",
-    "vitest": "^1.6.1"
+    "vite-plugin-dts": "^4.5.4"
   },
   "files": [
     "dist",
     "README.md",
     "LICENSE.md"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/openglobus/openglobus.git"
-  },
-  "bugs": {
-    "url": "https://github.com/openglobus/openglobus/issues"
-  },
-  "homepage": "https://openglobus.org"
+  ]
 }
