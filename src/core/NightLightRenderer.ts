@@ -1,4 +1,4 @@
-import { Scene, Mesh, ShaderMaterial, Vector3, Color3, Texture, Effect, BackFaceCulling } from '@babylonjs/core';
+import { Scene, Mesh, ShaderMaterial, Vector3, Color3, Texture, Effect } from '@babylonjs/core';
 
 /**
  * Night light renderer for displaying city lights and night-time effects on Earth
@@ -225,7 +225,7 @@ export class NightLightRenderer {
     );
     
     // Set material properties for proper blending
-    this._nightLightMaterial.backFaceCulling = BackFaceCulling.Front;
+    this._nightLightMaterial.backFaceCulling = false;
     this._nightLightMaterial.transparencyMode = 2; // Alpha blend
     this._nightLightMaterial.alphaMode = 7; // Alpha blend
     

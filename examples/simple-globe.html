@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenEarth - 简化配置示例</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #renderCanvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+            outline: none;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 350px;
+        }
+
+        .controls h3 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #4CAF50;
+            text-align: center;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: #ccc;
+            font-weight: 500;
+        }
+
+        .control-group button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .control-group button:hover {
+            background: #45a049;
+            transform: translateY(-1px);
+        }
+
+        .control-group select {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        .control-group input[type="checkbox"] {
+            margin-right: 8px;
+        }
+
+        .info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 12px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 13px;
+            color: #ccc;
+            min-width: 250px;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 12px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .loading.hidden {
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #4CAF50;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .config-example {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 12px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 400px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #4CAF50;
+            line-height: 1.4;
+        }
+
+        .config-example h4 {
+            margin: 0 0 15px 0;
+            color: #fff;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <div>正在加载 OpenEarth...</div>
+    </div>
+
+    <div class="controls">
+        <h3>🌍 OpenEarth 控制面板</h3>
+
+        <div class="control-group">
+            <label>快速定位:</label>
+            <button onclick="flyToLocation(120.1551, 30.2741)">杭州</button>
+            <button onclick="flyToLocation(116.4074, 39.9042)">北京</button>
+            <button onclick="flyToLocation(-74.006, 40.7128)">纽约</button>
+            <button onclick="flyToLocation(2.3522, 48.8566)">巴黎</button>
+        </div>
+
+        <div class="control-group">
+            <label>数据源:</label>
+            <select id="tileSource" onchange="changeTileSource()">
+                <option value="satellite">卫星影像</option>
+                <option value="terrain">地形数据</option>
+                <option value="hybrid">混合模式</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>图层控制:</label>
+            <div>
+                <input type="checkbox" id="atmosphereEnabled" checked onchange="toggleAtmosphere()">
+                <label for="atmosphereEnabled">大气层</label>
+            </div>
+            <div>
+                <input type="checkbox" id="nightLightsEnabled" checked onchange="toggleNightLights()">
+                <label for="nightLightsEnabled">夜景灯光</label>
+            </div>
+            <div>
+                <input type="checkbox" id="terrainEnabled" checked onchange="toggleTerrain()">
+                <label for="terrainEnabled">地形</label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>交互控制:</label>
+            <div>
+                <input type="checkbox" id="dragPanEnabled" checked onchange="toggleDragPan()">
+                <label for="dragPanEnabled">拖拽平移</label>
+            </div>
+            <div>
+                <input type="checkbox" id="scrollZoomEnabled" checked onchange="toggleScrollZoom()">
+                <label for="scrollZoomEnabled">滚轮缩放</label>
+            </div>
+            <div>
+                <input type="checkbox" id="dragRotateEnabled" onchange="toggleDragRotate()">
+                <label for="dragRotateEnabled">右键旋转</label>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>太阳系统:</label>
+            <div>
+                <input type="checkbox" id="dayNightCycleEnabled" checked onchange="toggleDayNightCycle()">
+                <label for="dayNightCycleEnabled">日夜循环</label>
+            </div>
+            <input type="range" id="timeSlider" min="0" max="24" step="0.5" value="12" onchange="updateTime()">
+            <span id="timeDisplay">12:00</span>
+        </div>
+    </div>
+
+    <div class="config-example">
+        <h4>配置示例 (类似 maplibre):</h4>
+        <pre>const globe = new SimpleGlobe({
+  container: canvas,
+  zoom: 4,
+  center: [120.1551, 30.2741],
+  altitude: 1000000,
+  showLogo: false,
+
+  sources: {
+    satellite: {
+      tiles: 'https://server.arcgisonline.com/...',
+      tileSize: 256,
+      minZoom: 0,
+      maxZoom: 19
+    }
+  },
+
+  layers: {
+    satellite: { enabled: true },
+    atmosphere: { enabled: true },
+    nightLights: { enabled: true }
+  },
+
+  controls: {
+    dragPan: true,
+    scrollZoom: true,
+    dragRotate: false
+  }
+});</pre>
+    </div>
+
+    <div class="info" id="info">
+        <div>📍 相机位置: <span id="cameraPos">加载中...</span></div>
+        <div>🗺️ 活跃瓦片: <span id="activeTiles">0</span></div>
+        <div>💾 缓存瓦片: <span id="cachedTiles">0</span></div>
+        <div>⚡ FPS: <span id="fps">0</span></div>
+        <div>⏱️ 帧时间: <span id="frameTime">0ms</span></div>
+    </div>
+
+    <canvas id="renderCanvas"></canvas>
+
+    <script type="module">
+        import { SimpleGlobe } from '../src/core/SimpleGlobe.js';
+
+        let globe = null;
+        let fpsCounter = 0;
+        let lastTime = performance.now();
+
+        // 初始化地球
+        async function initializeGlobe() {
+            try {
+                const canvas = document.getElementById('renderCanvas');
+
+                // 使用类似 maplibre 的配置风格
+                globe = new SimpleGlobe({
+                    container: canvas,
+                    zoom: 4,
+                    minZoom: 2,
+                    maxZoom: 18,
+                    center: [120.1551, 30.2741], // 杭州坐标
+                    altitude: 1000000,
+                    showLogo: false,
+
+                    render: {
+                        antialias: true,
+                        adaptToDeviceRatio: true,
+                        earthRadius: 6378137,
+                    },
+
+                    sources: {
+                        satellite: {
+                            tiles: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                            tileSize: 256,
+                            minZoom: 0,
+                            maxZoom: 19,
+                            attribution: '© Esri',
+                        },
+                        terrain: {
+                            tiles: 'https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png',
+                            tileSize: 256,
+                            minZoom: 0,
+                            maxZoom: 15,
+                            attribution: '© Mapzen',
+                        },
+                    },
+
+                    layers: {
+                        satellite: {
+                            enabled: true,
+                            opacity: 1.0,
+                        },
+                        terrain: {
+                            enabled: true,
+                            heightScale: 10000,
+                            detailScale: 16,
+                        },
+                        atmosphere: {
+                            enabled: true,
+                            intensity: 1.0,
+                        },
+                        nightLights: {
+                            enabled: true,
+                            intensity: 1.0,
+                            brightness: 0.8,
+                        },
+                    },
+
+                    controls: {
+                        dragPan: true,
+                        scrollZoom: true,
+                        dragRotate: false,
+                        boxZoom: false,
+                        keyboard: false,
+                        touchZoomRotate: true,
+                    },
+
+                    sun: {
+                        dayNightCycle: true,
+                        timeOfDay: 12.0,
+                        latitude: 39.9,
+                        cycleSpeed: 24000, // 24秒 = 1天
+                    },
+
+                    performance: {
+                        maxLOD: 18,
+                        minLOD: 0,
+                        tileCacheSize: 1000,
+                        maxTextureMemory: 512 * 1024 * 1024, // 512MB
+                        garbageCollectionInterval: 30000,
+                    },
+                });
+
+                await globe.initialize();
+
+                // 隐藏加载界面
+                document.getElementById('loading').classList.add('hidden');
+
+                // 开始信息更新
+                startInfoUpdates();
+
+                console.log('地球初始化成功');
+            } catch (error) {
+                console.error('地球初始化失败:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #f44336;">❌ 加载失败</div>
+                    <div style="font-size: 12px; margin-top: 10px;">${error.message}</div>
+                `;
+            }
+        }
+
+        // 开始信息面板更新
+        function startInfoUpdates() {
+            setInterval(() => {
+                if (globe && globe.camera) {
+                    // 更新相机位置
+                    const position = globe.camera.getPosition();
+                    document.getElementById('cameraPos').textContent =
+                        `(${position.longitude.toFixed(2)}°, ${position.latitude.toFixed(2)}°, ${(position.altitude / 1000).toFixed(0)}km)`;
+
+                    // 更新性能统计
+                    const currentTime = performance.now();
+                    const deltaTime = currentTime - lastTime;
+
+                    fpsCounter++;
+                    if (currentTime - lastTime >= 1000) {
+                        document.getElementById('fps').textContent = fpsCounter;
+                        document.getElementById('frameTime').textContent = (deltaTime / fpsCounter).toFixed(1) + 'ms';
+
+                        fpsCounter = 0;
+                        lastTime = currentTime;
+                    }
+                }
+            }, 100);
+        }
+
+        // 全局控制函数
+        window.flyToLocation = function(longitude, latitude, altitude = 1000000) {
+            if (globe) {
+                globe.flyTo(longitude, latitude, altitude);
+            }
+        };
+
+        window.changeTileSource = function() {
+            const select = document.getElementById('tileSource');
+            const sourceType = select.value;
+
+            if (globe) {
+                let tiles = '';
+                switch (sourceType) {
+                    case 'satellite':
+                        tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+                        break;
+                    case 'terrain':
+                        tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Terrain_Base/MapServer/tile/{z}/{y}/{x}';
+                        break;
+                    case 'hybrid':
+                        tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+                        break;
+                }
+
+                globe.setTileSource('satellite', tiles);
+                console.log('数据源已更改为:', sourceType);
+            }
+        };
+
+        window.toggleAtmosphere = function() {
+            const enabled = document.getElementById('atmosphereEnabled').checked;
+            if (globe) {
+                globe.updateConfig({
+                    layers: {
+                        atmosphere: { enabled }
+                    }
+                });
+            }
+        };
+
+        window.toggleNightLights = function() {
+            const enabled = document.getElementById('nightLightsEnabled').checked;
+            if (globe) {
+                globe.updateConfig({
+                    layers: {
+                        nightLights: { enabled }
+                    }
+                });
+            }
+        };
+
+        window.toggleTerrain = function() {
+            const enabled = document.getElementById('terrainEnabled').checked;
+            if (globe) {
+                globe.updateConfig({
+                    layers: {
+                        terrain: { enabled }
+                    }
+                });
+            }
+        };
+
+        window.toggleDragPan = function() {
+            const enabled = document.getElementById('dragPanEnabled').checked;
+            if (globe) {
+                globe.updateConfig({
+                    controls: {
+                        dragPan: enabled
+                    }
+                });
+            }
+        };
+
+        window.toggleScrollZoom = function() {
+            const enabled = document.getElementById('scrollZoomEnabled').checked;
+            if (globe) {
+                globe.updateConfig({
+                    controls: {
+                        scrollZoom: enabled
+                    }
+                });
+            }
+        };
+
+        window.toggleDragRotate = function() {
+            const enabled = document.getElementById('dragRotateEnabled').checked;
+            if (globe) {
+                globe.updateConfig({
+                    controls: {
+                        dragRotate: enabled
+                    }
+                });
+            }
+        };
+
+        window.toggleDayNightCycle = function() {
+            const enabled = document.getElementById('dayNightCycleEnabled').checked;
+            if (globe) {
+                globe.updateConfig({
+                    sun: {
+                        dayNightCycle: enabled
+                    }
+                });
+            }
+        };
+
+        window.updateTime = function() {
+            const timeSlider = document.getElementById('timeSlider');
+            const timeValue = parseFloat(timeSlider.value);
+            const hours = Math.floor(timeValue);
+            const minutes = Math.floor((timeValue - hours) * 60);
+
+            document.getElementById('timeDisplay').textContent =
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+
+            if (globe) {
+                globe.updateConfig({
+                    sun: {
+                        timeOfDay: timeValue
+                    }
+                });
+            }
+        };
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', initializeGlobe);
+
+        // 处理窗口大小变化
+        window.addEventListener('resize', () => {
+            if (globe) {
+                globe.engine.resize();
+            }
+        });
+
+        // 处理页面卸载
+        window.addEventListener('beforeunload', () => {
+            if (globe) {
+                globe.dispose();
+            }
+        });
+    </script>
+</body>
+</html>

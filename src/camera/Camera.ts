@@ -1,4 +1,19 @@
-import { Scene, ArcRotateCamera, Vector3, Tools, Animation, Animatable, EasingFunction, CubicEase } from '@babylonjs/core';
+import {
+  Scene,
+  ArcRotateCamera,
+  Vector3,
+  Tools,
+  Animation,
+  Animatable,
+  EasingFunction,
+  CubicEase,
+  PointerEventTypes,
+  PointerInfo,
+  Observer,
+} from '@babylonjs/core';
+import '@babylonjs/core/Behaviors/Cameras/autoRotationBehavior';
+import '@babylonjs/core/Behaviors/Cameras/bouncingBehavior';
+import '@babylonjs/core/Behaviors/Cameras/framingBehavior';
 
 /**
  * Camera manages the 3D camera control and interaction for the globe
@@ -7,7 +22,7 @@ import { Scene, ArcRotateCamera, Vector3, Tools, Animation, Animatable, EasingFu
 export class Camera {
   private _scene: Scene;
   private _canvas: HTMLCanvasElement;
-  private _camera: ArcRotateCamera;
+  private _camera!: ArcRotateCamera;
   private _isInitialized: boolean = false;
   private _planetRadius: number = 6378137; // Earth radius in meters
   private _minDistance: number;
@@ -17,18 +32,23 @@ export class Camera {
   // Camera constraints
   private _minAltitude: number = 100; // 100 meters above surface
   private _maxAltitude: number = 20000000; // 20,000 km
-  
+
   // Animation properties
-  private _animationGroup: Animation[] = [];
   private _isAnimating: boolean = false;
-  
+
   // Camera state
   private _lastUpdateTime: number = 0;
-  private _smoothingFactor: number = 0.1;
-  
+
   // Interaction state
   private _isUserInteracting: boolean = false;
   private _autoRotateSpeed: number = 0;
+  private _pointerObserver: Observer<PointerInfo> | null = null;
+  private _interactionTimeout: number | null = null;
+  
+  // Enhanced control properties
+  private _smoothingEnabled: boolean = true;
+  private _touchSensitivity: number = 1.0;
+  private _wheelSensitivity: number = 1.0;
 
   constructor(scene: Scene, canvas: HTMLCanvasElement, options: CameraOptions = {}) {
     this._scene = scene;
@@ -36,12 +56,17 @@ export class Camera {
     this._planetRadius = options.planetRadius ?? this._planetRadius;
     this._minAltitude = options.minAltitude ?? this._minAltitude;
     this._maxAltitude = options.maxAltitude ?? this._maxAltitude;
-    
+
     this._minDistance = this._planetRadius + this._minAltitude;
     this._maxDistance = this._planetRadius + this._maxAltitude;
-    
+
     // Auto-rotation settings
     this._autoRotateSpeed = options.autoRotateSpeed ?? 0;
+    
+    // Enhanced control settings
+    this._touchSensitivity = options.touchSensitivity ?? 1.0;
+    this._wheelSensitivity = options.wheelSensitivity ?? 1.0;
+    this._smoothingEnabled = options.smoothingEnabled ?? true;
 
     this._createCamera(options);
     this._setupInteractionDetection();
@@ -58,14 +83,14 @@ export class Camera {
     try {
       // Set camera as active camera
       this._scene.activeCamera = this._camera;
-      
+
       // Attach camera controls
-      this._camera.attachToCanvas(this._canvas, true);
-      
+      this._camera.attachControl(this._canvas, true);
+
       // Setup camera constraints and behaviors
       this._setupConstraints();
       this._setupBehaviors();
-      
+
       // Set initial position (view of Earth from space)
       this.setPosition(0, 0, this._planetRadius * 3);
 
@@ -86,13 +111,25 @@ export class Camera {
       this._currentAnimation.stop();
       this._currentAnimation = null;
     }
-    
+
+    // Clear interaction timeout
+    if (this._interactionTimeout) {
+      clearTimeout(this._interactionTimeout);
+      this._interactionTimeout = null;
+    }
+
+    // Remove pointer observer
+    if (this._pointerObserver) {
+      this._scene.onPointerObservable.remove(this._pointerObserver);
+      this._pointerObserver = null;
+    }
+
     // Detach controls and dispose camera
     if (this._camera) {
-      this._camera.detachFromCanvas();
+      this._camera.detachControl();
       this._camera.dispose();
     }
-    
+
     this._isInitialized = false;
   }
 
@@ -103,29 +140,64 @@ export class Camera {
     if (!this._isInitialized) {
       return;
     }
-    
+
     const currentTime = performance.now();
     const deltaTime = currentTime - this._lastUpdateTime;
     this._lastUpdateTime = currentTime;
-    
+
     // Auto-rotation when not interacting
     if (this._autoRotateSpeed > 0 && !this._isUserInteracting && !this._isAnimating) {
       this._camera.alpha += this._autoRotateSpeed * deltaTime * 0.001;
     }
   }
-  
+
   /**
    * Set auto-rotation speed (radians per second)
    */
   public setAutoRotateSpeed(speed: number): void {
     this._autoRotateSpeed = speed;
   }
-  
+
   /**
    * Enable/disable auto-rotation
    */
   public setAutoRotate(enabled: boolean, speed: number = 0.1): void {
     this._autoRotateSpeed = enabled ? speed : 0;
+    if (this._camera.autoRotationBehavior) {
+      this._camera.autoRotationBehavior.idleRotationSpeed = this._autoRotateSpeed;
+    }
+  }
+
+  /**
+   * Set touch sensitivity for pinch gestures
+   */
+  public setTouchSensitivity(sensitivity: number): void {
+    this._touchSensitivity = Math.max(0.1, sensitivity);
+    this._camera.pinchPrecision = 200 / this._touchSensitivity;
+  }
+
+  /**
+   * Set wheel zoom sensitivity
+   */
+  public setWheelSensitivity(sensitivity: number): void {
+    this._wheelSensitivity = Math.max(0.1, sensitivity);
+    this._camera.wheelPrecision = 50 / this._wheelSensitivity;
+  }
+
+  /**
+   * Enable/disable smooth camera movements
+   */
+  public setSmoothingEnabled(enabled: boolean): void {
+    this._smoothingEnabled = enabled;
+    if (enabled) {
+      this._camera.inertia = 0.9;
+      this._camera.angularSensibilityX = 800;
+      this._camera.angularSensibilityY = 800;
+    } else {
+      this._camera.inertia = 0;
+      this._camera.angularSensibilityX = 1000;
+      this._camera.angularSensibilityY = 1000;
+    }
   }
 
   /**
@@ -155,22 +227,22 @@ export class Camera {
   public get altitude(): number {
     return this._camera.radius - this._planetRadius;
   }
-  
+
   /**
    * Get current spherical coordinates
    */
   public get alpha(): number {
     return this._camera.alpha;
   }
-  
+
   public get beta(): number {
     return this._camera.beta;
   }
-  
+
   public get radius(): number {
     return this._camera.radius;
   }
-  
+
   /**
    * Check if camera is currently animating
    */
@@ -182,14 +254,14 @@ export class Camera {
    * Attach camera controls to canvas
    */
   public attachToCanvas(canvas: HTMLCanvasElement): void {
-    this._camera.attachToCanvas(canvas, true);
+    this._camera.attachControl(canvas, true);
   }
-  
+
   /**
    * Detach camera controls from canvas
    */
   public detachFromCanvas(): void {
-    this._camera.detachFromCanvas();
+    this._camera.detachControl();
   }
 
   /**
@@ -223,7 +295,7 @@ export class Camera {
   public async animateToPosition(position: Vector3, target: Vector3, duration: number = 2000): Promise<void> {
     return this._animateToPosition(position, target, duration);
   }
-  
+
   /**
    * Animate camera to spherical coordinates
    */
@@ -232,11 +304,11 @@ export class Camera {
       this.setSphericalCoordinates(alpha, beta, radius);
       return;
     }
-    
+
     this._isAnimating = true;
     const frameRate = 60;
-    const totalFrames = Math.floor(frameRate * duration / 1000);
-    
+    const totalFrames = Math.floor((frameRate * duration) / 1000);
+
     // Create alpha animation
     const alphaAnimation = new Animation(
       'cameraAlpha',
@@ -245,12 +317,12 @@ export class Camera {
       Animation.ANIMATIONTYPE_FLOAT,
       Animation.ANIMATIONLOOPMODE_CONSTANT
     );
-    
+
     // Handle alpha wrapping for shortest path
     let targetAlpha = alpha;
     const currentAlpha = this._camera.alpha;
     const diff = targetAlpha - currentAlpha;
-    
+
     if (Math.abs(diff) > Math.PI) {
       if (diff > 0) {
         targetAlpha -= 2 * Math.PI;
@@ -258,12 +330,12 @@ export class Camera {
         targetAlpha += 2 * Math.PI;
       }
     }
-    
+
     alphaAnimation.setKeys([
       { frame: 0, value: currentAlpha },
-      { frame: totalFrames, value: targetAlpha }
+      { frame: totalFrames, value: targetAlpha },
     ]);
-    
+
     // Create beta animation
     const betaAnimation = new Animation(
       'cameraBeta',
@@ -272,12 +344,12 @@ export class Camera {
       Animation.ANIMATIONTYPE_FLOAT,
       Animation.ANIMATIONLOOPMODE_CONSTANT
     );
-    
+
     betaAnimation.setKeys([
       { frame: 0, value: this._camera.beta },
-      { frame: totalFrames, value: Math.max(this._camera.lowerBetaLimit, Math.min(this._camera.upperBetaLimit, beta)) }
+      { frame: totalFrames, value: Math.max(this._camera.lowerBetaLimit || 0, Math.min(this._camera.upperBetaLimit || Math.PI, beta)) },
     ]);
-    
+
     // Create radius animation
     const radiusAnimation = new Animation(
       'cameraRadius',
@@ -286,20 +358,23 @@ export class Camera {
       Animation.ANIMATIONTYPE_FLOAT,
       Animation.ANIMATIONLOOPMODE_CONSTANT
     );
-    
+
     radiusAnimation.setKeys([
       { frame: 0, value: this._camera.radius },
-      { frame: totalFrames, value: Math.max(this._camera.lowerRadiusLimit, Math.min(this._camera.upperRadiusLimit, radius)) }
+      {
+        frame: totalFrames,
+        value: Math.max(this._camera.lowerRadiusLimit || this._minDistance, Math.min(this._camera.upperRadiusLimit || this._maxDistance, radius)),
+      },
     ]);
-    
+
     // Add easing to all animations
     const easingFunction = new CubicEase();
     easingFunction.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
-    
+
     alphaAnimation.setEasingFunction(easingFunction);
     betaAnimation.setEasingFunction(easingFunction);
     radiusAnimation.setEasingFunction(easingFunction);
-    
+
     // Start animations
     const animatable = this._scene.beginAnimation(this._camera, 0, totalFrames, false);
     animatable.onAnimationEnd = () => {
@@ -314,21 +389,21 @@ export class Camera {
     const clampedAltitude = Math.max(this._minAltitude, Math.min(this._maxAltitude, altitude));
     this._camera.radius = this._planetRadius + clampedAltitude;
   }
-  
+
   /**
    * Get current altitude above surface
    */
   public getAltitude(): number {
     return this._camera.radius - this._planetRadius;
   }
-  
+
   /**
    * Set camera spherical coordinates
    */
   public setSphericalCoordinates(alpha: number, beta: number, radius: number): void {
     this._camera.alpha = alpha;
     this._camera.beta = beta;
-    this._camera.radius = Math.max(this._camera.lowerRadiusLimit, Math.min(this._camera.upperRadiusLimit, radius));
+    this._camera.radius = Math.max(this._camera.lowerRadiusLimit || this._minDistance, Math.min(this._camera.upperRadiusLimit || this._maxDistance, radius));
   }
 
   /**
@@ -346,23 +421,23 @@ export class Camera {
     const newRadius = this._camera.radius * factor;
     this._camera.radius = Math.min(this._maxDistance, newRadius);
   }
-  
+
   /**
    * Zoom to specific distance with animation
    */
   public zoomTo(distance: number, duration: number = 1000): void {
-    const clampedDistance = Math.max(this._camera.lowerRadiusLimit, Math.min(this._camera.upperRadiusLimit, distance));
-    
+    const clampedDistance = Math.max(this._camera.lowerRadiusLimit || this._minDistance, Math.min(this._camera.upperRadiusLimit || this._maxDistance, distance));
+
     if (duration <= 0) {
       this._camera.radius = clampedDistance;
       return;
     }
-    
+
     // Create smooth zoom animation
     const startRadius = this._camera.radius;
     const frameRate = 60;
-    const totalFrames = Math.floor(frameRate * duration / 1000);
-    
+    const totalFrames = Math.floor((frameRate * duration) / 1000);
+
     const animation = new Animation(
       'cameraZoom',
       'radius',
@@ -370,19 +445,19 @@ export class Camera {
       Animation.ANIMATIONTYPE_FLOAT,
       Animation.ANIMATIONLOOPMODE_CONSTANT
     );
-    
+
     const keys = [
       { frame: 0, value: startRadius },
-      { frame: totalFrames, value: clampedDistance }
+      { frame: totalFrames, value: clampedDistance },
     ];
-    
+
     animation.setKeys(keys);
-    
+
     // Add easing for smooth animation
     const easingFunction = new CubicEase();
     easingFunction.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
     animation.setEasingFunction(easingFunction);
-    
+
     this._scene.beginAnimation(this._camera, 0, totalFrames, false);
   }
 
@@ -401,9 +476,9 @@ export class Camera {
    */
   public setControlsEnabled(enabled: boolean): void {
     if (enabled) {
-      this._camera.attachToCanvas(this._canvas, true);
+      this._camera.attachControl(this._canvas, true);
     } else {
-      this._camera.detachFromCanvas();
+      this._camera.detachControl();
     }
   }
 
@@ -411,14 +486,14 @@ export class Camera {
    * Get camera view matrix
    */
   public getViewMatrix(): Float32Array {
-    return this._camera.getViewMatrix().asArray();
+    return this._camera.getViewMatrix().asArray() as unknown as Float32Array;
   }
 
   /**
    * Get camera projection matrix
    */
   public getProjectionMatrix(): Float32Array {
-    return this._camera.getProjectionMatrix().asArray();
+    return this._camera.getProjectionMatrix().asArray() as unknown as Float32Array;
   }
 
   /**
@@ -450,7 +525,7 @@ export class Camera {
     // Set distance limits
     this._camera.lowerRadiusLimit = this._minDistance;
     this._camera.upperRadiusLimit = this._maxDistance;
-    
+
     // Set vertical angle limits (prevent going below ground)
     this._camera.lowerBetaLimit = 0.1;
     this._camera.upperBetaLimit = Math.PI - 0.1;
@@ -460,14 +535,44 @@ export class Camera {
    * Setup camera behaviors and interactions
    */
   private _setupBehaviors(): void {
-    // Enable smooth camera movements
+    // Enable Babylon.js 8 native behaviors
+    this._camera.useAutoRotationBehavior = true;
+    if (this._camera.autoRotationBehavior) {
+      this._camera.autoRotationBehavior.idleRotationSpeed = this._autoRotateSpeed;
+      this._camera.autoRotationBehavior.idleRotationWaitTime = 2000;
+      this._camera.autoRotationBehavior.zoomStopsAnimation = true;
+    }
+
+    // Enable bouncing behavior for smooth interactions
+    this._camera.useBouncingBehavior = true;
+    if (this._camera.bouncingBehavior) {
+      this._camera.bouncingBehavior.transitionDuration = 450;
+      this._camera.bouncingBehavior.lowerRadiusTransitionRange = 2;
+      this._camera.bouncingBehavior.upperRadiusTransitionRange = -2;
+    }
+
+    // Enhanced touch and mouse controls
     this._camera.useNaturalPinchZoom = true;
     this._camera.panningInertia = 0.9;
     this._camera.angularSensibilityX = 1000;
     this._camera.angularSensibilityY = 1000;
     
-    // Setup wheel zoom behavior
+    // Improved wheel behavior for Babylon.js 8
     this._camera.wheelDeltaPercentage = 0.01;
+    this._camera.wheelPrecision = 50 / this._wheelSensitivity;
+    this._camera.pinchPrecision = 200 / this._touchSensitivity;
+    
+    // Enhanced panning controls
+    this._camera.panningSensibility = 1000;
+    this._camera.panningOriginTarget = Vector3.Zero();
+    this._camera.panningDistanceLimit = this._maxDistance;
+    
+    // Smooth camera movements
+    if (this._smoothingEnabled) {
+      this._camera.inertia = 0.9;
+      this._camera.angularSensibilityX *= 0.8;
+      this._camera.angularSensibilityY *= 0.8;
+    }
   }
 
   /**
@@ -489,7 +594,7 @@ export class Camera {
    * Animate camera to a specific position and target
    */
   private async _animateToPosition(position: Vector3, target: Vector3, duration: number): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise(resolve => {
       // Stop any current animation
       if (this._currentAnimation) {
         this._currentAnimation.stop();
@@ -502,23 +607,23 @@ export class Camera {
       const beta = Math.acos(direction.y / distance);
 
       // Create animations
-      const alphaAnimation = Animation.CreateAndStartAnimation(
+      Animation.CreateAndStartAnimation(
         'cameraAlpha',
         this._camera,
         'alpha',
         60,
-        duration / 1000 * 60,
+        (duration / 1000) * 60,
         this._camera.alpha,
         alpha,
         Animation.ANIMATIONLOOPMODE_CONSTANT
       );
 
-      const betaAnimation = Animation.CreateAndStartAnimation(
+      Animation.CreateAndStartAnimation(
         'cameraBeta',
         this._camera,
         'beta',
         60,
-        duration / 1000 * 60,
+        (duration / 1000) * 60,
         this._camera.beta,
         beta,
         Animation.ANIMATIONLOOPMODE_CONSTANT
@@ -529,18 +634,18 @@ export class Camera {
         this._camera,
         'radius',
         60,
-        duration / 1000 * 60,
+        (duration / 1000) * 60,
         this._camera.radius,
         distance,
         Animation.ANIMATIONLOOPMODE_CONSTANT
       );
 
-      const targetAnimation = Animation.CreateAndStartAnimation(
+      Animation.CreateAndStartAnimation(
         'cameraTarget',
         this._camera,
         'target',
         60,
-        duration / 1000 * 60,
+        (duration / 1000) * 60,
         this._camera.target,
         target,
         Animation.ANIMATIONLOOPMODE_CONSTANT
@@ -558,32 +663,66 @@ export class Camera {
       }
     });
   }
-}
 
   /**
    * Setup interaction detection for auto-rotation
    */
   private _setupInteractionDetection(): void {
-    // Detect when user starts interacting
+    // Enhanced pointer interaction detection
+    this._pointerObserver = this._scene.onPointerObservable.add((pointerInfo) => {
+      switch (pointerInfo.type) {
+        case PointerEventTypes.POINTERDOWN:
+        case PointerEventTypes.POINTERMOVE:
+        case PointerEventTypes.POINTERWHEEL:
+          this._onUserInteractionStart();
+          break;
+        case PointerEventTypes.POINTERUP:
+          this._onUserInteractionEnd();
+          break;
+      }
+    });
+
+    // Detect camera movement changes
     this._camera.onViewMatrixChangedObservable.add(() => {
       if (!this._isAnimating) {
-        this._isUserInteracting = true;
-        
-        // Reset interaction flag after a delay
-        setTimeout(() => {
-          this._isUserInteracting = false;
-        }, 2000); // 2 seconds of inactivity before auto-rotation resumes
+        this._onUserInteractionStart();
       }
     });
   }
-  
+
   /**
-   * Stop all running animations
+   * Handle user interaction start
    */
-  private _stopAllAnimations(): void {
-    this._scene.stopAnimation(this._camera);
-    this._isAnimating = false;
+  private _onUserInteractionStart(): void {
+    this._isUserInteracting = true;
+    
+    // Clear existing timeout
+    if (this._interactionTimeout) {
+      clearTimeout(this._interactionTimeout);
+    }
+    
+    // Disable auto-rotation during interaction
+    if (this._camera.autoRotationBehavior) {
+      this._camera.autoRotationBehavior.idleRotationSpeed = 0;
+    }
   }
+
+  /**
+   * Handle user interaction end
+   */
+  private _onUserInteractionEnd(): void {
+    // Set timeout to resume auto-rotation
+    this._interactionTimeout = window.setTimeout(() => {
+      this._isUserInteracting = false;
+      
+      // Re-enable auto-rotation
+      if (this._camera.autoRotationBehavior && this._autoRotateSpeed > 0) {
+        this._camera.autoRotationBehavior.idleRotationSpeed = this._autoRotateSpeed;
+      }
+    }, 2000); // 2 seconds of inactivity
+  }
+
+
 }
 
 /**
@@ -610,4 +749,10 @@ export interface CameraOptions {
   angularSensibilityY?: number;
   /** Auto-rotation speed (radians per second) */
   autoRotateSpeed?: number;
+  /** Touch sensitivity for pinch gestures */
+  touchSensitivity?: number;
+  /** Wheel zoom sensitivity */
+  wheelSensitivity?: number;
+  /** Enable smooth camera movements */
+  smoothingEnabled?: boolean;
 }

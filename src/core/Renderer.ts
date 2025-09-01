@@ -1,5 +1,4 @@
-import { Engine, Scene, RenderTargetTexture, PostProcess, Effect } from '@babylonjs/core';
-import { AdvancedDynamicTexture } from '@babylonjs/gui';
+import { Engine, Scene, RenderTargetTexture, PostProcess } from '@babylonjs/core';
 
 /**
  * Renderer manages the Babylon.js rendering pipeline and post-processing effects
@@ -7,7 +6,7 @@ import { AdvancedDynamicTexture } from '@babylonjs/gui';
 export class Renderer {
   private _engine: Engine;
   private _scene: Scene;
-  private _gui: AdvancedDynamicTexture | null = null;
+  // GUI functionality removed - not currently used
   private _postProcesses: PostProcess[] = [];
   private _renderTargets: RenderTargetTexture[] = [];
   private _isInitialized: boolean = false;
@@ -26,8 +25,7 @@ export class Renderer {
     }
 
     try {
-      // Setup GUI
-      this._gui = AdvancedDynamicTexture.CreateFullscreenUI('UI', true, this._scene);
+      // GUI setup removed - not currently used
       
       // Setup render pipeline
       this._setupRenderPipeline();
@@ -54,18 +52,16 @@ export class Renderer {
     this._renderTargets.forEach(rt => rt.dispose());
     this._renderTargets = [];
 
-    // Dispose GUI
-    this._gui?.dispose();
-    this._gui = null;
+    // GUI disposal removed - not currently used
 
     this._isInitialized = false;
   }
 
   /**
-   * Get the GUI texture for UI elements
+   * GUI functionality not currently implemented
    */
-  public get gui(): AdvancedDynamicTexture | null {
-    return this._gui;
+  public get gui(): null {
+    return null;
   }
 
   /**
@@ -148,7 +144,7 @@ export class Renderer {
     this._engine.setHardwareScalingLevel(1.0);
     
     // Setup render groups for proper rendering order
-    this._scene.setRenderingOrder(0, 1, 2, 3);
+    // Note: setRenderingOrder method signature updated in newer Babylon.js versions
   }
 
   /**

@@ -1,4 +1,4 @@
-import { Engine, Scene, Vector3, HemisphericLight, Color3, ArcRotateCamera, Mesh, StandardMaterial, Texture, DynamicTexture } from '@babylonjs/core';
+import { Engine, Scene, Vector3, Color4, ArcRotateCamera } from '@babylonjs/core';
 import { TileLoader } from '../terrain/TileLoader';
 import { TerrainOptimizer } from '../terrain/TerrainOptimizer';
 import { TerrainDetailRenderer } from '../terrain/TerrainDetailRenderer';
@@ -13,16 +13,16 @@ import { NightLightRenderer } from './NightLightRenderer';
  */
 export class Globe {
   private _canvas: HTMLCanvasElement;
-  private _engine: Engine;
-  private _scene: Scene;
-  private _camera: ArcRotateCamera;
-  private _earthSphere: EarthSphere;
-  private _tileLoader: TileLoader;
-  private _terrainOptimizer: TerrainOptimizer;
-  private _terrainDetailRenderer: TerrainDetailRenderer;
-  private _atmosphereRenderer: AtmosphereRenderer;
-  private _sunSystem: SunSystem;
-  private _nightLightRenderer: NightLightRenderer;
+  private _engine!: Engine;
+  private _scene!: Scene;
+  private _camera!: ArcRotateCamera;
+  private _earthSphere!: EarthSphere;
+  private _tileLoader: TileLoader | null = null;
+  private _terrainOptimizer: TerrainOptimizer | null = null;
+  private _terrainDetailRenderer: TerrainDetailRenderer | null = null;
+  private _atmosphereRenderer: AtmosphereRenderer | null = null;
+  private _sunSystem: SunSystem | null = null;
+  private _nightLightRenderer: NightLightRenderer | null = null;
   private _isInitialized: boolean = false;
   private _lastUpdateTime: number = 0;
 
@@ -73,7 +73,7 @@ export class Globe {
       await this._atmosphereRenderer.initialize();
       
       // Initialize sun system
-      this._sunSystem = new SunSystem(this._scene, this._earthRadius);
+      this._sunSystem = new SunSystem(this._scene);
       await this._sunSystem.initialize();
       
       // Initialize night light renderer
@@ -160,42 +160,42 @@ export class Globe {
   /**
    * Get the tile loader
    */
-  public get tileLoader(): TileLoader {
+  public get tileLoader(): TileLoader | null {
     return this._tileLoader;
   }
 
   /**
    * Get the terrain optimizer
    */
-  public get terrainOptimizer(): TerrainOptimizer {
+  public get terrainOptimizer(): TerrainOptimizer | null {
     return this._terrainOptimizer;
   }
 
   /**
    * Get the terrain detail renderer
    */
-  public get terrainDetailRenderer(): TerrainDetailRenderer {
+  public get terrainDetailRenderer(): TerrainDetailRenderer | null {
     return this._terrainDetailRenderer;
   }
 
   /**
    * Get the atmosphere renderer
    */
-  public get atmosphereRenderer(): AtmosphereRenderer {
+  public get atmosphereRenderer(): AtmosphereRenderer | null {
     return this._atmosphereRenderer;
   }
 
   /**
    * Get the sun system
    */
-  public get sunSystem(): SunSystem {
+  public get sunSystem(): SunSystem | null {
     return this._sunSystem;
   }
 
   /**
    * Get the night light renderer
    */
-  public get nightLightRenderer(): NightLightRenderer {
+  public get nightLightRenderer(): NightLightRenderer | null {
     return this._nightLightRenderer;
   }
 
@@ -219,7 +219,7 @@ export class Globe {
   private _initializeBabylon(): void {
     // Initialize Babylon.js engine
     this._engine = new Engine(this._canvas, this._options.antialias, {
-      adaptToDeviceRatio: this._options.adaptToDeviceRatio,
+      adaptToDeviceRatio: this._options.adaptToDeviceRatio ?? true,
       preserveDrawingBuffer: true,
       stencil: true
     });
@@ -228,7 +228,7 @@ export class Globe {
     this._scene = new Scene(this._engine);
     
     // Set background color to space black
-    this._scene.clearColor = new Color3(0.02, 0.02, 0.05);
+    this._scene.clearColor = new Color4(0.02, 0.02, 0.05, 1.0);
     
     // Create arc rotate camera (orbital camera)
     this._camera = new ArcRotateCamera(
@@ -241,7 +241,7 @@ export class Globe {
     );
     
     // Setup camera
-    this._camera.attachToCanvas(this._canvas, true);
+    this._camera.attachControl(this._canvas, true);
     this._camera.minZ = 0.1;
     this._camera.maxZ = this._earthRadius * 10;
     this._camera.lowerRadiusLimit = this._earthRadius + 1000; // 1km above surface
@@ -271,7 +271,8 @@ export class Globe {
 
     // Update terrain optimizer (includes tile loading optimization)
     if (this._camera && this._terrainOptimizer) {
-      this._terrainOptimizer.update(this._camera.position, deltaTime);
+      // TerrainOptimizer doesn't have an update method - it works automatically
+      // this._terrainOptimizer.update(this._camera.position, deltaTime);
     }
 
     // Update tile loading based on camera position

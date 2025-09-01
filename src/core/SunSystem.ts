@@ -1,4 +1,4 @@
-import { Scene, DirectionalLight, Vector3, Color3, Animation, AnimationGroup, EasingFunction, CubicEase } from '@babylonjs/core';
+import { Scene, DirectionalLight, Vector3, Color3, Animation, AnimationGroup, CubicEase } from '@babylonjs/core';
 
 /**
  * SunSystem manages sun lighting, day/night cycles, and solar positioning
@@ -269,7 +269,7 @@ export class SunSystem {
       }
 
       // Create animation
-      const timeAnimation = Animation.CreateAndStartAnimation(
+      Animation.CreateAndStartAnimation(
         'sunTimeAnimation',
         this,
         '_timeOfDay',
@@ -287,11 +287,7 @@ export class SunSystem {
         }
       );
 
-      // Update sun position during animation
-      timeAnimation?.setKeys([
-        { frame: 0, value: startTime },
-        { frame: Math.floor(duration / 1000 * 60), value: actualEndTime }
-      ]);
+      // Animation keys are already set by CreateAndStartAnimation
 
       this._scene.onBeforeRenderObservable.add(() => {
         this._updateSunPosition();

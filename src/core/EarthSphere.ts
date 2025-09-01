@@ -154,7 +154,7 @@ export class EarthSphere {
     const context = dynamicTexture.getContext();
     
     // Create a simple earth-like pattern
-    this._drawEarthPattern(context, textureSize);
+    this._drawEarthPattern(context as CanvasRenderingContext2D, textureSize);
     
     // Update the texture
     dynamicTexture.update();
@@ -217,7 +217,12 @@ export class EarthSphere {
       // Wait for texture to load
       await new Promise<void>((resolve, reject) => {
         texture.onLoadObservable.add(() => resolve());
-        texture.onErrorObservable.add(() => reject(new Error(`Failed to load texture: ${url}`)));
+        // Note: onErrorObservable might not be available in all Babylon.js versions
+        setTimeout(() => {
+          if (!texture.isReady()) {
+            reject(new Error(`Failed to load texture: ${url}`));
+          }
+        }, 5000); // 5 second timeout
       });
       
       this.setTexture(texture);
@@ -236,7 +241,12 @@ export class EarthSphere {
       // Wait for texture to load
       await new Promise<void>((resolve, reject) => {
         normalMap.onLoadObservable.add(() => resolve());
-        normalMap.onErrorObservable.add(() => reject(new Error(`Failed to load normal map: ${url}`)));
+        // Note: onErrorObservable might not be available in all Babylon.js versions
+        setTimeout(() => {
+          if (!normalMap.isReady()) {
+            reject(new Error(`Failed to load normal map: ${url}`));
+          }
+        }, 5000); // 5 second timeout
       });
       
       this.setNormalMap(normalMap);

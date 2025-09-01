@@ -1,5 +1,5 @@
-import { Scene, Vector3, Mesh, Material, Texture, Engine } from '@babylonjs/core';
-import { TileLoader, TileCoordinate, TileBounds } from './TileLoader';
+import { Scene, Vector3, AbstractEngine } from '@babylonjs/core';
+import { TileLoader, TileCoordinate } from './TileLoader';
 
 /**
  * TerrainOptimizer provides advanced optimization features for terrain rendering
@@ -7,7 +7,7 @@ import { TileLoader, TileCoordinate, TileBounds } from './TileLoader';
  */
 export class TerrainOptimizer {
   private _scene: Scene;
-  private _engine: Engine;
+  private _engine: AbstractEngine;
   private _tileLoader: TileLoader;
   private _isEnabled: boolean = true;
   
@@ -85,7 +85,7 @@ export class TerrainOptimizer {
   /**
    * Update optimization systems
    */
-  public update(cameraPosition: Vector3, deltaTime: number): void {
+  public update(cameraPosition: Vector3): void {
     if (!this._isEnabled) return;
     
     this._frameStartTime = performance.now();
@@ -220,23 +220,19 @@ export class TerrainOptimizer {
   /**
    * Apply LOD transition with smooth blending
    */
-  private _applyLODTransition(targetLOD: number, distance: number): void {
-    const lodLevel = this._lodConfig.lodLevels[targetLOD];
+  private _applyLODTransition(_targetLOD: number, _distance: number): void {
+    const lodLevel = this._lodConfig.lodLevels[_targetLOD];
     const transitionDistance = lodLevel.distance * this._lodConfig.transitionZone;
-    
-    // Calculate blend factor for smooth transitions
-    const blendFactor = Math.max(0, Math.min(1, 
-      (lodLevel.distance - distance) / transitionDistance
-    ));
     
     // Apply to active tiles (this would need integration with TileLoader)
     // Implementation would modify mesh resolution and texture quality
+    console.log(`LOD transition at distance: ${_distance}, threshold: ${transitionDistance}`);
   }
   
   /**
    * Update frustum culling
    */
-  private _updateFrustumCulling(cameraPosition: Vector3): void {
+  private _updateFrustumCulling(_cameraPosition: Vector3): void {
     if (!this._frustumCulling.enabled) return;
     
     const now = performance.now();
@@ -268,7 +264,7 @@ export class TerrainOptimizer {
   /**
    * Load tile asynchronously
    */
-  private async _loadTileAsync(request: TileLoadRequest): Promise<void> {
+  private async _loadTileAsync(_request: TileLoadRequest): Promise<void> {
     this._currentLoads++;
     
     try {
@@ -303,7 +299,7 @@ export class TerrainOptimizer {
    * Update performance statistics
    */
   private _updatePerformanceStats(): void {
-    this._performanceStats.drawCalls = this._engine.drawCalls;
+    this._performanceStats.drawCalls = this._engine._drawCalls.current;
     this._performanceStats.activeTiles = this._tileLoader.activeTileCount;
     this._performanceStats.cachedTiles = this._tileLoader.cachedTileCount;
     

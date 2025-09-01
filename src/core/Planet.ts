@@ -18,7 +18,7 @@ export class Planet {
     this._scene = scene;
     this._radius = options.radius ?? this._radius;
     
-    this._terrainSystem = new TerrainSystem(scene, this._radius);
+    this._terrainSystem = new TerrainSystem(scene, { planetRadius: this._radius });
     this._atmosphereRenderer = new AtmosphereRenderer(scene, this._radius);
   }
 
@@ -178,20 +178,21 @@ export class Planet {
   /**
    * Update level of detail based on camera distance
    */
-  private _updateLevelOfDetail(cameraPosition: Vector3): void {
+  private _updateLevelOfDetail(_cameraPosition: Vector3): void {
     if (!this._planetMesh) {
       return;
     }
 
     // Calculate distance from camera to planet surface
-    const distanceToSurface = Vector3.Distance(cameraPosition, Vector3.Zero()) - this._radius;
+    // const distanceToSurface = Vector3.Distance(cameraPosition, Vector3.Zero()) - this._radius;
     
     // Adjust mesh detail based on distance
     // This is a simplified LOD system - in practice, you'd use more sophisticated techniques
-    const lodLevel = Math.min(Math.max(Math.floor(distanceToSurface / 100000), 1), 4);
+    // const lodLevel = Math.min(Math.max(Math.floor(distanceToSurface / 100000), 1), 4);
     
     // Update terrain system LOD
-    this._terrainSystem.setLevelOfDetail(lodLevel);
+    // TODO: Implement LOD system in TerrainSystem
+    // this._terrainSystem.setLevelOfDetail(lodLevel);
   }
 }
 
