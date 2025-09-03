@@ -38,12 +38,12 @@
   "author": "OpenGlobus Team",
   "license": "MIT",
   "dependencies": {
-    "@babylonjs/core": "^8.25.0",
-    "@babylonjs/loaders": "^8.25.0",
-    "@babylonjs/materials": "^8.25.0",
-    "@babylonjs/post-processes": "^8.25.0",
-    "@babylonjs/procedural-textures": "^8.25.0",
-    "@babylonjs/serializers": "^8.25.0"
+    "@babylonjs/core": "^8.25.1",
+    "@babylonjs/loaders": "^8.25.1",
+    "@babylonjs/materials": "^8.25.1",
+    "@babylonjs/post-processes": "^8.25.1",
+    "@babylonjs/procedural-textures": "^8.25.1",
+    "@babylonjs/serializers": "^8.25.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.34.0",
