@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenEarth 基础使用示例</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+
+        #renderCanvas {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 250px;
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .control-group input,
+        .control-group select,
+        .control-group button {
+            width: 100%;
+            padding: 3px;
+            margin-bottom: 5px;
+        }
+
+        .status {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+
+    <div class="controls">
+        <h3>OpenEarth 控制面板</h3>
+
+        <div class="control-group">
+            <label>时间控制:</label>
+            <button onclick="pauseTime()">暂停/恢复</button>
+            <button onclick="resetTime()">重置时间</button>
+            <input type="range" id="timeScale" min="0" max="100" value="10"
+                   oninput="setTimeScale(this.value / 10)">
+            <span>时间倍速: <span id="timeScaleValue">1.0</span>x</span>
+        </div>
+
+        <div class="control-group">
+            <label>相机控制:</label>
+            <button onclick="flyToBeijing()">飞到北京</button>
+            <button onclick="flyToNewYork()">飞到纽约</button>
+            <button onclick="flyToLondon()">飞到伦敦</button>
+        </div>
+
+        <div class="control-group">
+            <label>渲染控制:</label>
+            <input type="checkbox" id="atmosphere" checked onchange="toggleAtmosphere(this.checked)">
+            <label for="atmosphere">大气层</label><br>
+
+            <input type="checkbox" id="nightLights" checked onchange="toggleNightLights(this.checked)">
+            <label for="nightLights">夜间灯光</label><br>
+
+            <label>夜间灯光强度:</label>
+            <input type="range" id="lightIntensity" min="0" max="200" value="100"
+                   oninput="setLightIntensity(this.value / 100)">
+        </div>
+    </div>
+
+    <div class="status" id="status">
+        <div>状态: 初始化中...</div>
+        <div id="fps">FPS: --</div>
+        <div id="cacheInfo">缓存: --</div>
+        <div id="timeInfo">时间: --</div>
+    </div>
+
+    <script type="module">
+        import { Globe, logger, LogLevel } from '../dist/index.js';
+
+        // 设置日志级别
+        logger.setLogLevel(LogLevel.DEBUG);
+
+        let globe;
+        let fpsCounter = 0;
+        let lastFpsTime = 0;
+
+        async function initializeGlobe() {
+            try {
+                const canvas = document.getElementById('renderCanvas');
+
+                // 创建Globe实例
+                globe = new Globe({
+                    container: canvas,
+                    center: [116.4074, 39.9042], // 北京坐标
+                    altitude: 2000000, // 2000km高度
+                    earthRadius: 6378137,
+
+                    // 时间系统配置
+                    timeSystem: {
+                        initialTime: new Date(),
+                        timeScale: 1.0,
+                        enableRealTime: true
+                    },
+
+                    // 大气层配置
+                    atmosphere: {
+                        enabled: true,
+                        atmosphereHeight: 100000,
+                        sunIntensity: 22.0,
+                        exposure: 2.0
+                    },
+
+                    // 夜间灯光配置
+                    nightLight: {
+                        intensity: 1.0,
+                        brightness: 0.8,
+                        enableDistanceControl: true
+                    },
+
+                    // 相机控制配置
+                    controls: {
+                        enableMouse: true,
+                        enableWheel: true,
+                        enableKeyboard: true,
+                        sensitivity: 1.0
+                    }
+                });
+
+                // 初始化Globe
+                await globe.initialize();
+
+                updateStatus('Globe初始化成功');
+
+                // 启动状态更新
+                setInterval(updateGlobeStatus, 1000);
+
+            } catch (error) {
+                console.error('初始化失败:', error);
+                updateStatus('初始化失败: ' + error.message);
+            }
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML =
+                `<div>状态: ${message}</div>
+                 <div id="fps">FPS: --</div>
+                 <div id="cacheInfo">缓存: --</div>
+                 <div id="timeInfo">时间: --</div>`;
+        }
+
+        function updateGlobeStatus() {
+            if (!globe) return;
+
+            // 更新FPS
+            const now = performance.now();
+            if (now - lastFpsTime >= 1000) {
+                document.getElementById('fps').textContent = `FPS: ${fpsCounter}`;
+                fpsCounter = 0;
+                lastFpsTime = now;
+            }
+            fpsCounter++;
+
+            // 更新系统状态
+            const status = globe.getStatus();
+
+            // 更新缓存信息
+            if (status.tileLoader) {
+                document.getElementById('cacheInfo').textContent =
+                    `缓存: ${status.tileLoader.cacheSize} tiles, 队列: ${status.tileLoader.queueSize}`;
+            }
+
+            // 更新时间信息
+            if (status.timeSystem) {
+                const time = new Date(status.timeSystem.currentTime);
+                document.getElementById('timeInfo').textContent =
+                    `时间: ${time.toLocaleString()}, 倍速: ${status.timeSystem.timeScale}x`;
+            }
+        }
+
+        // 全局函数，供HTML调用
+        window.pauseTime = function() {
+            if (!globe) return;
+            const timeSystem = globe.getTimeSystem();
+            if (timeSystem) {
+                if (timeSystem.isPaused()) {
+                    timeSystem.resume();
+                } else {
+                    timeSystem.pause();
+                }
+            }
+        };
+
+        window.resetTime = function() {
+            if (!globe) return;
+            const timeSystem = globe.getTimeSystem();
+            if (timeSystem) {
+                timeSystem.reset();
+            }
+        };
+
+        window.setTimeScale = function(scale) {
+            if (!globe) return;
+            const timeSystem = globe.getTimeSystem();
+            if (timeSystem) {
+                timeSystem.setTimeScale(scale);
+                document.getElementById('timeScaleValue').textContent = scale.toFixed(1);
+            }
+        };
+
+        window.flyToBeijing = function() {
+            if (!globe) return;
+            globe.flyTo(116.4074, 39.9042, 1000000);
+        };
+
+        window.flyToNewYork = function() {
+            if (!globe) return;
+            globe.flyTo(-74.0060, 40.7128, 1000000);
+        };
+
+        window.flyToLondon = function() {
+            if (!globe) return;
+            globe.flyTo(-0.1278, 51.5074, 1000000);
+        };
+
+        window.toggleAtmosphere = function(enabled) {
+            if (!globe) return;
+            const atmosphere = globe.getAtmosphereRenderer();
+            if (atmosphere) {
+                atmosphere.setEnabled(enabled);
+            }
+        };
+
+        window.toggleNightLights = function(enabled) {
+            if (!globe) return;
+            const nightLights = globe.getNightLightRenderer();
+            if (nightLights) {
+                nightLights.setDistanceControlEnabled(enabled);
+            }
+        };
+
+        window.setLightIntensity = function(intensity) {
+            if (!globe) return;
+            const nightLights = globe.getNightLightRenderer();
+            if (nightLights) {
+                nightLights.setIntensity(intensity);
+            }
+        };
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', initializeGlobe);
+
+        // 页面卸载时清理资源
+        window.addEventListener('beforeunload', () => {
+            if (globe) {
+                globe.dispose();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,355 +1,493 @@
+/**
+ * Globe类 - 地球核心模块
+ * 系统的核心控制器，负责系统的统一入口、生命周期管理、配置管理和时间系统管理
+ */
+
 import { Engine, Scene, Vector3, Color4, ArcRotateCamera } from '@babylonjs/core';
-import { TileLoader } from '../terrain/TileLoader';
-import { TerrainOptimizer } from '../terrain/TerrainOptimizer';
-import { TerrainDetailRenderer } from '../terrain/TerrainDetailRenderer';
-import { EarthSphere } from './EarthSphere';
-import { AtmosphereRenderer } from './AtmosphereRenderer';
+import { TimeSystem, TimeEventType, type TimeEvent } from './TimeSystem';
 import { SunSystem } from './SunSystem';
-import { NightLightRenderer } from './NightLightRenderer';
+import { createGlobeConfig, type GlobeConfig } from './GlobeConfig';
+import { CameraController } from '../camera/CameraController';
+import { TileLoader } from '../data/TileLoader';
+import { DataSourceFactory } from '../data/DataSource';
+import { AtmosphereRenderer } from '../rendering/AtmosphereRenderer';
+import { NightLightRenderer } from '../rendering/NightLightRenderer';
+import { logger } from '../utils/Logger';
+import { eventBus } from '../utils/EventSystem';
+
+// 定义系统状态类型
+export interface SystemStatus {
+  isInitialized: boolean;
+  timeSystem: unknown;
+  sunSystem: unknown;
+  cameraController: unknown;
+  tileLoader: unknown;
+  atmosphereRenderer: unknown;
+  nightLightRenderer: unknown;
+}
+
+// 定义引擎选项类型
+export interface EngineOptions {
+  adaptToDeviceRatio?: boolean;
+}
 
 /**
- * Globe is the main entry point for the OpenGlobus Babylon.js implementation
- * Focuses on earth sphere rendering and tile data loading using Babylon.js architecture
+ * Globe类
+ * 系统的核心控制器，负责系统的统一入口、生命周期管理、配置管理和时间系统管理
  */
 export class Globe {
   private _canvas: HTMLCanvasElement;
   private _engine!: Engine;
   private _scene!: Scene;
   private _camera!: ArcRotateCamera;
-  private _earthSphere!: EarthSphere;
-  private _tileLoader: TileLoader | null = null;
-  private _terrainOptimizer: TerrainOptimizer | null = null;
-  private _terrainDetailRenderer: TerrainDetailRenderer | null = null;
-  private _atmosphereRenderer: AtmosphereRenderer | null = null;
+  private _config: GlobeConfig;
+  private _isInitialized: boolean;
+
+  // 核心系统
+  private _timeSystem: TimeSystem | null = null;
   private _sunSystem: SunSystem | null = null;
+  private _cameraController: CameraController | null = null;
+  private _tileLoader: TileLoader | null = null;
+
+  // 渲染模块
+  private _atmosphereRenderer: AtmosphereRenderer | null = null;
   private _nightLightRenderer: NightLightRenderer | null = null;
-  private _isInitialized: boolean = false;
-  private _lastUpdateTime: number = 0;
 
-  // Earth configuration
-  private _earthRadius: number = 6378137; // Earth radius in meters
-  private _options: GlobeOptions;
+  constructor(userConfig: Partial<GlobeConfig> & { container: HTMLCanvasElement }) {
+    this._canvas = userConfig.container;
+    this._config = createGlobeConfig(userConfig);
+    this._isInitialized = false;
 
-  constructor(canvas: HTMLCanvasElement, options: GlobeOptions = {}) {
-    this._canvas = canvas;
-    this._options = {
-      antialias: true,
-      adaptToDeviceRatio: true,
-      earthRadius: this._earthRadius,
-      ...options
-    };
-
-    this._earthRadius = this._options.earthRadius!;
     this._initializeBabylon();
+
+    logger.info('Globe created', 'Globe', {
+      center: this._config.center,
+      zoom: this._config.zoom,
+      earthRadius: this._config.earthRadius,
+    });
   }
 
   /**
-   * Initialize the globe and all its systems
+   * 初始化Globe系统
    */
   public async initialize(): Promise<void> {
     if (this._isInitialized) {
+      logger.warn('Globe already initialized', 'Globe');
       return;
     }
 
     try {
-      // Create earth sphere
-      this._earthSphere = new EarthSphere(this._scene, this._earthRadius);
-      await this._earthSphere.initialize();
-      
-      // Initialize tile loader
-      this._tileLoader = new TileLoader(this._scene, this._earthRadius);
-      await this._tileLoader.initialize();
-      
-      // Initialize terrain optimizer
-      this._terrainOptimizer = new TerrainOptimizer(this._scene, this._tileLoader);
-      this._terrainOptimizer.initialize();
-      
-      // Initialize terrain detail renderer
-      this._terrainDetailRenderer = new TerrainDetailRenderer(this._scene, this._earthRadius);
-      await this._terrainDetailRenderer.initialize();
-      
-      // Initialize atmosphere renderer
-      this._atmosphereRenderer = new AtmosphereRenderer(this._scene, this._earthRadius);
-      await this._atmosphereRenderer.initialize();
-      
-      // Initialize sun system
-      this._sunSystem = new SunSystem(this._scene);
-      await this._sunSystem.initialize();
-      
-      // Initialize night light renderer
-      this._nightLightRenderer = new NightLightRenderer(this._scene, this._earthRadius);
-      await this._nightLightRenderer.initialize();
-      
-      // Note: Lighting is now handled by SunSystem
-      
-      // Start render loop
+      logger.info('Initializing Globe system', 'Globe');
+
+      // 1. 初始化时间系统（优先创建）
+      await this._initializeTimeSystem();
+
+      // 2. 初始化太阳系统
+      await this._initializeSunSystem();
+
+      // 3. 初始化瓦片加载器
+      await this._initializeTileLoader();
+
+      // 4. 初始化渲染模块
+      await this._initializeRenderingModules();
+
+      // 5. 初始化相机控制器
+      await this._initializeCameraController();
+
+      // 6. 设置事件订阅
+      this._setupEventSubscriptions();
+
+      // 7. 启动渲染循环
       this._startRenderLoop();
-      
+
       this._isInitialized = true;
+      logger.info('Globe system initialized successfully', 'Globe');
+
+      // 发布初始化完成事件
+      eventBus.publish('globe:initialized', {
+        config: this._config,
+      });
     } catch (error) {
-      console.error('Failed to initialize Globe:', error);
+      logger.error('Failed to initialize Globe', 'Globe', error);
       throw error;
     }
   }
 
   /**
-   * Dispose of all resources and stop rendering
+   * 销毁Globe系统
    */
   public dispose(): void {
-    if (this._engine) {
-      this._engine.stopRenderLoop();
-    }
-
-    this._earthSphere?.dispose();
-    this._tileLoader?.dispose();
-    this._terrainOptimizer?.dispose();
-    this._terrainDetailRenderer?.dispose();
-    this._atmosphereRenderer?.dispose();
-    this._sunSystem?.dispose();
-    this._nightLightRenderer?.dispose();
-    this._scene?.dispose();
-    this._engine?.dispose();
-
-    this._isInitialized = false;
-  }
-
-  /**
-   * Resize the globe when canvas size changes
-   */
-  public resize(): void {
-    this._engine.resize();
-  }
-
-  /**
-   * Fly camera to specific geographic location
-   */
-  public flyTo(longitude: number, latitude: number, altitude: number = 2000000): void {
-    if (!this._camera) return;
-    
-    // Convert geographic coordinates to world position
-    const position = this._geographicToWorld(longitude, latitude, altitude);
-    const target = this._geographicToWorld(longitude, latitude, 0);
-    
-    // Animate camera to position
-    this._animateCameraTo(position, target);
-  }
-
-  /**
-   * Load tile data for specific area
-   */
-  public async loadTiles(bounds: { west: number; east: number; south: number; north: number; level: number }): Promise<void> {
-    if (this._tileLoader) {
-      await this._tileLoader.loadTilesInBounds(bounds);
-    }
-  }
-
-  /**
-   * Get the camera
-   */
-  public get camera(): ArcRotateCamera {
-    return this._camera;
-  }
-
-  /**
-   * Get the earth sphere
-   */
-  public get earthSphere(): EarthSphere {
-    return this._earthSphere;
-  }
-
-  /**
-   * Get the tile loader
-   */
-  public get tileLoader(): TileLoader | null {
-    return this._tileLoader;
-  }
-
-  /**
-   * Get the terrain optimizer
-   */
-  public get terrainOptimizer(): TerrainOptimizer | null {
-    return this._terrainOptimizer;
-  }
-
-  /**
-   * Get the terrain detail renderer
-   */
-  public get terrainDetailRenderer(): TerrainDetailRenderer | null {
-    return this._terrainDetailRenderer;
-  }
-
-  /**
-   * Get the atmosphere renderer
-   */
-  public get atmosphereRenderer(): AtmosphereRenderer | null {
-    return this._atmosphereRenderer;
-  }
-
-  /**
-   * Get the sun system
-   */
-  public get sunSystem(): SunSystem | null {
-    return this._sunSystem;
-  }
-
-  /**
-   * Get the night light renderer
-   */
-  public get nightLightRenderer(): NightLightRenderer | null {
-    return this._nightLightRenderer;
-  }
-
-  /**
-   * Get the scene instance
-   */
-  public get scene(): Scene {
-    return this._scene;
-  }
-
-  /**
-   * Get the engine instance
-   */
-  public get engine(): Engine {
-    return this._engine;
-  }
-
-  /**
-   * Initialize Babylon.js engine, scene and camera
-   */
-  private _initializeBabylon(): void {
-    // Initialize Babylon.js engine
-    this._engine = new Engine(this._canvas, this._options.antialias, {
-      adaptToDeviceRatio: this._options.adaptToDeviceRatio ?? true,
-      preserveDrawingBuffer: true,
-      stencil: true
-    });
-
-    // Create scene
-    this._scene = new Scene(this._engine);
-    
-    // Set background color to space black
-    this._scene.clearColor = new Color4(0.02, 0.02, 0.05, 1.0);
-    
-    // Create arc rotate camera (orbital camera)
-    this._camera = new ArcRotateCamera(
-      'camera',
-      0, // alpha (horizontal rotation)
-      Math.PI / 2, // beta (vertical rotation)  
-      this._earthRadius * 3, // radius (distance from target)
-      Vector3.Zero(), // target
-      this._scene
-    );
-    
-    // Setup camera
-    this._camera.attachControl(this._canvas, true);
-    this._camera.minZ = 0.1;
-    this._camera.maxZ = this._earthRadius * 10;
-    this._camera.lowerRadiusLimit = this._earthRadius + 1000; // 1km above surface
-    this._camera.upperRadiusLimit = this._earthRadius * 5; // 5x earth radius
-    this._camera.wheelPrecision = 50;
-  }
-
-  // Note: Lighting setup is now handled by SunSystem
-
-  /**
-   * Update the globe rendering
-   */
-  public update(): void {
     if (!this._isInitialized) {
       return;
     }
 
-    // Calculate delta time
-    const currentTime = performance.now();
-    const deltaTime = this._lastUpdateTime > 0 ? currentTime - this._lastUpdateTime : 0;
-    this._lastUpdateTime = currentTime;
+    logger.info('Disposing Globe system', 'Globe');
 
-    // Update sun system
+    // 停止渲染循环
+    if (this._engine) {
+      this._engine.stopRenderLoop();
+    }
+
+    // 按相反顺序销毁模块
+    if (this._cameraController) {
+      this._cameraController.dispose();
+      this._cameraController = null;
+    }
+
+    if (this._nightLightRenderer) {
+      this._nightLightRenderer.dispose();
+      this._nightLightRenderer = null;
+    }
+
+    if (this._atmosphereRenderer) {
+      this._atmosphereRenderer.dispose();
+      this._atmosphereRenderer = null;
+    }
+
+    if (this._tileLoader) {
+      this._tileLoader.dispose();
+      this._tileLoader = null;
+    }
+
     if (this._sunSystem) {
-      this._sunSystem.update(deltaTime);
+      this._sunSystem.dispose();
+      this._sunSystem = null;
     }
 
-    // Update terrain optimizer (includes tile loading optimization)
-    if (this._camera && this._terrainOptimizer) {
-      // TerrainOptimizer doesn't have an update method - it works automatically
-      // this._terrainOptimizer.update(this._camera.position, deltaTime);
+    if (this._timeSystem) {
+      this._timeSystem.dispose();
+      this._timeSystem = null;
     }
 
-    // Update tile loading based on camera position
-    if (this._camera && this._tileLoader) {
-      this._tileLoader.update(this._camera.position);
+    if (this._engine) {
+      this._engine.dispose();
     }
 
-    // Update atmosphere rendering with sun direction
-    if (this._camera && this._atmosphereRenderer && this._sunSystem) {
-      const sunDirection = this._sunSystem.sunDirection;
-      this._atmosphereRenderer.update(this._camera.position, sunDirection);
-    }
+    this._isInitialized = false;
 
-    // Update night light rendering
-    if (this._camera && this._nightLightRenderer && this._sunSystem) {
-      const sunDirection = this._sunSystem.sunDirection;
-      this._nightLightRenderer.update(this._camera.position, sunDirection);
-    }
+    // 发布销毁事件
+    eventBus.publish('globe:disposed');
 
-    // Render the scene
-    this._scene?.render();
+    logger.info('Globe system disposed', 'Globe');
   }
 
   /**
-   * Start the render loop
+   * 飞行到指定位置
+   */
+  public async flyTo(longitude: number, latitude: number, altitude?: number): Promise<void> {
+    if (this._cameraController) {
+      await this._cameraController.flyTo(longitude, latitude, altitude);
+      logger.info('Fly to completed', 'Globe', { longitude, latitude, altitude });
+    }
+  }
+
+  /**
+   * 更新配置
+   */
+  public updateConfig(newConfig: Partial<GlobeConfig>): void {
+    const oldConfig = { ...this._config };
+    this._config = createGlobeConfig({ ...this._config, ...newConfig });
+
+    // 更新各个模块的配置
+    if (newConfig.timeSystem && this._timeSystem) {
+      this._timeSystem.updateConfig(newConfig.timeSystem);
+    }
+
+    if (newConfig.sunSystem && this._sunSystem) {
+      // 更新太阳系统配置
+      if (newConfig.sunSystem.atmosphericConditions) {
+        this._sunSystem.setAtmosphericConditions(newConfig.sunSystem.atmosphericConditions);
+      }
+      if (newConfig.sunSystem.seasonalFactors) {
+        this._sunSystem.setSeasonalFactors(newConfig.sunSystem.seasonalFactors);
+      }
+    }
+
+    logger.info('Globe configuration updated', 'Globe', {
+      oldConfig,
+      newConfig: this._config,
+    });
+
+    // 发布配置更新事件
+    eventBus.publish('globe:config-updated', {
+      oldConfig,
+      newConfig: this._config,
+    });
+  }
+
+  /**
+   * 获取配置
+   */
+  public getConfig(): GlobeConfig {
+    return { ...this._config };
+  }
+
+  /**
+   * 获取时间系统
+   */
+  public getTimeSystem(): TimeSystem | null {
+    return this._timeSystem;
+  }
+
+  /**
+   * 获取太阳系统
+   */
+  public getSunSystem(): SunSystem | null {
+    return this._sunSystem;
+  }
+
+  /**
+   * 获取相机控制器
+   */
+  public getCameraController(): CameraController | null {
+    return this._cameraController;
+  }
+
+  /**
+   * 获取瓦片加载器
+   */
+  public getTileLoader(): TileLoader | null {
+    return this._tileLoader;
+  }
+
+  /**
+   * 获取大气渲染器
+   */
+  public getAtmosphereRenderer(): AtmosphereRenderer | null {
+    return this._atmosphereRenderer;
+  }
+
+  /**
+   * 获取夜间灯光渲染器
+   */
+  public getNightLightRenderer(): NightLightRenderer | null {
+    return this._nightLightRenderer;
+  }
+
+  /**
+   * 获取场景
+   */
+  public getScene(): Scene {
+    return this._scene;
+  }
+
+  /**
+   * 获取相机
+   */
+  public getCamera(): ArcRotateCamera {
+    return this._camera;
+  }
+
+  /**
+   * 获取引擎
+   */
+  public getEngine(): Engine {
+    return this._engine;
+  }
+
+  /**
+   * 获取系统状态
+   */
+  public getStatus(): SystemStatus {
+    return {
+      isInitialized: this._isInitialized,
+      timeSystem: this._timeSystem?.getStatus(),
+      sunSystem: this._sunSystem?.getStatus(),
+      cameraController: this._cameraController?.getStatus(),
+      tileLoader: this._tileLoader?.getStatus(),
+      atmosphereRenderer: this._atmosphereRenderer?.getStatus(),
+      nightLightRenderer: this._nightLightRenderer?.getStatus(),
+    };
+  }
+
+  /**
+   * 初始化Babylon.js引擎和场景
+   */
+  private _initializeBabylon(): void {
+    // 创建引擎
+    const engineOptions: EngineOptions = {};
+    if (this._config.adaptToDeviceRatio !== undefined) {
+      engineOptions.adaptToDeviceRatio = this._config.adaptToDeviceRatio;
+    }
+
+    this._engine = new Engine(this._canvas, this._config.antialias, engineOptions);
+
+    // 创建场景
+    this._scene = new Scene(this._engine);
+    this._scene.clearColor = new Color4(0, 0, 0, 1);
+
+    // 创建相机
+    const center = this._config.center ?? [0, 0];
+    const altitude = this._config.altitude ?? 2000000;
+
+    this._camera = new ArcRotateCamera(
+      'camera',
+      (center[0] * Math.PI) / 180,
+      ((90 - center[1]) * Math.PI) / 180,
+      altitude / (this._config.earthRadius ?? 6378137),
+      Vector3.Zero(),
+      this._scene
+    );
+
+    // 设置相机参数
+    this._camera.minZ = 0.1;
+    this._camera.maxZ = 1000;
+    this._camera.attachControl(this._canvas, true);
+
+    // 设置相机约束
+    if (this._config.minZoom !== undefined) {
+      this._camera.lowerRadiusLimit = this._config.minZoom;
+    }
+    if (this._config.maxZoom !== undefined) {
+      this._camera.upperRadiusLimit = this._config.maxZoom;
+    }
+
+    logger.debug('Babylon.js initialized', 'Globe', {
+      antialias: this._config.antialias,
+      adaptToDeviceRatio: this._config.adaptToDeviceRatio,
+    });
+  }
+
+  /**
+   * 初始化时间系统
+   */
+  private async _initializeTimeSystem(): Promise<void> {
+    this._timeSystem = new TimeSystem(this._config.timeSystem);
+    await this._timeSystem.initialize();
+    logger.debug('TimeSystem initialized', 'Globe');
+  }
+
+  /**
+   * 初始化太阳系统
+   */
+  private async _initializeSunSystem(): Promise<void> {
+    this._sunSystem = new SunSystem(this._config.sunSystem);
+    await this._sunSystem.initialize();
+    logger.debug('SunSystem initialized', 'Globe');
+  }
+
+  /**
+   * 初始化瓦片加载器
+   */
+  private async _initializeTileLoader(): Promise<void> {
+    this._tileLoader = new TileLoader(this._config.tileLoader);
+    await this._tileLoader.initialize();
+
+    // 添加默认数据源
+    const osmDataSource = DataSourceFactory.createOpenStreetMap();
+    this._tileLoader.addDataSource('osm', osmDataSource);
+
+    logger.debug('TileLoader initialized', 'Globe');
+  }
+
+  /**
+   * 初始化渲染模块
+   */
+  private async _initializeRenderingModules(): Promise<void> {
+    // 初始化大气渲染器
+    if (this._config.atmosphere?.enabled) {
+      this._atmosphereRenderer = new AtmosphereRenderer(
+        this._scene,
+        this._config.earthRadius ?? 6378137,
+        this._config.atmosphere
+      );
+      await this._atmosphereRenderer.initialize();
+    }
+
+    // 初始化夜间灯光渲染器
+    if (this._config.nightLight) {
+      this._nightLightRenderer = new NightLightRenderer(
+        this._scene,
+        this._config.earthRadius ?? 6378137,
+        this._config.nightLight
+      );
+      await this._nightLightRenderer.initialize();
+    }
+
+    logger.debug('Rendering modules initialized', 'Globe');
+  }
+
+  /**
+   * 初始化相机控制器
+   */
+  private async _initializeCameraController(): Promise<void> {
+    this._cameraController = new CameraController(this._scene, this._camera, this._config.controls);
+    await this._cameraController.initialize();
+    logger.debug('CameraController initialized', 'Globe');
+  }
+
+  /**
+   * 设置事件订阅
+   */
+  private _setupEventSubscriptions(): void {
+    if (!this._timeSystem) return;
+
+    // 订阅时间系统事件
+    this._timeSystem.getTimeObservable().add((event: TimeEvent) => {
+      switch (event.type) {
+        case TimeEventType.TIME_CHANGED:
+        case TimeEventType.TIME_JUMPED:
+          // 更新太阳系统
+          if (this._sunSystem) {
+            this._sunSystem.update(event.currentTime);
+          }
+
+          // 通知夜间灯光渲染器
+          if (this._nightLightRenderer) {
+            this._nightLightRenderer.onTimeChanged(event.currentTime);
+          }
+
+          // 通知大气渲染器
+          if (this._atmosphereRenderer) {
+            this._atmosphereRenderer.onTimeChanged(event.currentTime);
+          }
+          break;
+      }
+    });
+
+    logger.debug('Event subscriptions set up', 'Globe');
+  }
+
+  /**
+   * 启动渲染循环
    */
   private _startRenderLoop(): void {
     this._engine.runRenderLoop(() => {
-      if (this._scene && this._scene.activeCamera) {
-        this.update();
+      const deltaTime = this._engine.getDeltaTime() / 1000; // 转换为秒
+
+      // 更新时间系统
+      if (this._timeSystem) {
+        this._timeSystem.update(deltaTime);
       }
+
+      // 更新相机控制器
+      if (this._cameraController) {
+        this._cameraController.update();
+      }
+
+      // 更新瓦片加载器
+      if (this._tileLoader) {
+        this._tileLoader.updateCameraPosition(this._camera.position);
+      }
+
+      // 更新渲染器
+      if (this._atmosphereRenderer && this._sunSystem) {
+        this._atmosphereRenderer.update(this._camera.position, this._sunSystem.getSunDirection());
+      }
+
+      if (this._nightLightRenderer && this._sunSystem) {
+        this._nightLightRenderer.update(this._camera.position, this._sunSystem.getSunDirection());
+      }
+
+      // 渲染场景
+      this._scene.render();
     });
-    
-    // Handle window resize
+
+    // 处理窗口大小变化
     window.addEventListener('resize', () => {
-      this.resize();
+      this._engine.resize();
     });
-  }
 
-  /**
-   * Convert geographic coordinates to world position
-   */
-  private _geographicToWorld(longitude: number, latitude: number, altitude: number): Vector3 {
-    const lonRad = longitude * Math.PI / 180;
-    const latRad = latitude * Math.PI / 180;
-    const radius = this._earthRadius + altitude;
-    
-    const x = radius * Math.cos(latRad) * Math.cos(lonRad);
-    const y = radius * Math.sin(latRad);
-    const z = radius * Math.cos(latRad) * Math.sin(lonRad);
-    
-    return new Vector3(x, y, z);
+    logger.debug('Render loop started', 'Globe');
   }
-
-  /**
-   * Animate camera to specific position
-   */
-  private _animateCameraTo(position: Vector3, target: Vector3): void {
-    // Simple implementation - direct assignment
-    // TODO: Add smooth animation using Babylon.js Animation system
-    this._camera.setTarget(target);
-    this._camera.setPosition(position);
-  }
-}
-
-/**
- * Configuration options for Globe initialization
- */
-export interface GlobeOptions {
-  /** Enable antialiasing */
-  antialias?: boolean;
-  /** Adapt to device pixel ratio */
-  adaptToDeviceRatio?: boolean;
-  /** Earth radius in meters */
-  earthRadius?: number;
-  /** Initial camera position */
-  initialCameraPosition?: Vector3;
-  /** Initial camera target */
-  initialCameraTarget?: Vector3;
 }
