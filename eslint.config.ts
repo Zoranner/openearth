@@ -20,8 +20,6 @@ export default [
       parserOptions: {
         ecmaVersion: 2022,
         sourceType: 'module',
-        project: './tsconfig.json',
-        tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
@@ -45,9 +43,17 @@ export default [
     },
   },
 
-  // TypeScript 特定规则
+  // TypeScript 项目文件特定规则（包含 project 配置）
   {
-    files: ['**/*.ts', '**/*.tsx'],
+    files: ['src/**/*.ts', 'src/**/*.tsx'],
+    languageOptions: {
+      parserOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        project: './tsconfig.json',
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
     rules: {
       '@typescript-eslint/no-unused-vars': [
         'warn',
@@ -83,7 +89,8 @@ export default [
     files: ['vite.config.ts', '*.config.ts', '*.config.js'],
     languageOptions: {
       parserOptions: {
-        project: './tsconfig.node.json',
+        ecmaVersion: 2022,
+        sourceType: 'module',
       },
     },
     rules: {
