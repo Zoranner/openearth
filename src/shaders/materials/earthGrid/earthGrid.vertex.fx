@@ -17,7 +17,7 @@ varying vec3 vWorldPosition;
 varying vec3 vNormal;
 varying vec2 vUV;
 varying vec3 vCameraPosition;
-varying float vDistanceToCamera;
+varying float vDistanceToEarthCenter;
 
 void main() {
     // 计算世界坐标
@@ -33,8 +33,8 @@ void main() {
     // 传递相机位置
     vCameraPosition = cameraPosition;
 
-    // 计算到相机的距离
-    vDistanceToCamera = length(worldPosition.xyz - cameraPosition);
+    // 计算相机到地球中心的距离（用于整体淡出）
+    vDistanceToEarthCenter = length(cameraPosition);
 
     // 输出最终位置
     gl_Position = worldViewProjection * vec4(position, 1.0);

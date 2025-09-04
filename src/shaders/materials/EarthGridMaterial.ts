@@ -69,23 +69,19 @@ export class EarthGridMaterial {
     const uniforms: EarthGridUniforms = {
       baseColor: this._config.baseColor,
       gridColor: this._config.gridColor,
+      zeroLineColor: this._config.zeroLineColor,
       gridOpacity: this._config.gridOpacity,
-      majorLineWidth: this._config.majorLineWidth,
-      minorLineWidth: this._config.minorLineWidth,
-      fadeDistance: this._config.fadeDistance,
-      maxViewDistance: this._config.maxViewDistance,
+      lineWidth: this._config.lineWidth,
     };
 
     // 设置向量uniform
     this._material.setVector3('baseColor', new Vector3(...uniforms.baseColor));
     this._material.setVector3('gridColor', new Vector3(...uniforms.gridColor));
+    this._material.setVector3('zeroLineColor', new Vector3(...uniforms.zeroLineColor));
 
     // 设置标量uniform
     this._material.setFloat('gridOpacity', uniforms.gridOpacity);
-    this._material.setFloat('majorLineWidth', uniforms.majorLineWidth);
-    this._material.setFloat('minorLineWidth', uniforms.minorLineWidth);
-    this._material.setFloat('fadeDistance', uniforms.fadeDistance);
-    this._material.setFloat('maxViewDistance', uniforms.maxViewDistance);
+    this._material.setFloat('lineWidth', uniforms.lineWidth);
   }
 
   /**

@@ -9,11 +9,9 @@ export interface ShaderUniforms {
 export interface EarthGridUniforms extends ShaderUniforms {
   baseColor: [number, number, number];
   gridColor: [number, number, number];
+  zeroLineColor: [number, number, number];
   gridOpacity: number;
-  majorLineWidth: number;
-  minorLineWidth: number;
-  fadeDistance: number;
-  maxViewDistance: number;
+  lineWidth: number;
 }
 
 export interface ShaderMaterialConfig {
@@ -28,9 +26,7 @@ export interface ShaderMaterialConfig {
 export interface GridShaderConfig {
   baseColor?: [number, number, number];
   gridColor?: [number, number, number];
+  zeroLineColor?: [number, number, number];
   gridOpacity?: number;
-  majorLineWidth?: number;
-  minorLineWidth?: number;
-  fadeDistance?: number;
-  maxViewDistance?: number;
+  lineWidth?: number;
 }

@@ -18,11 +18,9 @@ export const earthGridShaderConfig = {
     'cameraPosition',
     'baseColor',
     'gridColor',
+    'zeroLineColor',
     'gridOpacity',
-    'majorLineWidth',
-    'minorLineWidth',
-    'fadeDistance',
-    'maxViewDistance',
+    'lineWidth',
   ],
 };
 
@@ -30,9 +28,7 @@ export const earthGridShaderConfig = {
 export const defaultEarthGridConfig = {
   baseColor: [0.2, 0.4, 0.8] as [number, number, number],
   gridColor: [1.0, 1.0, 1.0] as [number, number, number],
+  zeroLineColor: [1.0, 1.0, 0.0] as [number, number, number], // 亮黄色
   gridOpacity: 0.8,
-  majorLineWidth: 2.0,
-  minorLineWidth: 1.0,
-  fadeDistance: 5.0,
-  maxViewDistance: 15.0,
+  lineWidth: 1.0,
 };

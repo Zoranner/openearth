@@ -283,12 +283,9 @@ export class TileTextureRenderer {
     // 创建基于shader的网格材质
     this._earthGridMaterial = new EarthGridMaterial(this._scene, {
       baseColor: [this._config.oceanColor.r, this._config.oceanColor.g, this._config.oceanColor.b],
-      gridColor: [1.0, 1.0, 1.0],
+      gridColor: [1, 1, 1],
       gridOpacity: 0.8,
-      majorLineWidth: 2.0,
-      minorLineWidth: 1.0,
-      fadeDistance: 5.0,
-      maxViewDistance: 15.0,
+      lineWidth: 1.0,
     });
 
     // 应用shader材质到球体
