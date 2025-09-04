@@ -10,8 +10,10 @@ import { createGlobeConfig, type GlobeConfig } from './GlobeConfig';
 import { CameraController } from '../camera/CameraController';
 import { TileLoader } from '../data/TileLoader';
 import { DataSourceFactory } from '../data/DataSource';
-import { AtmosphereRenderer } from '../rendering/AtmosphereRenderer';
-import { NightLightRenderer } from '../rendering/NightLightRenderer';
+import { EarthRenderer } from '../rendering/EarthRenderer';
+import { createEarthRendererConfig } from '../rendering/EarthRendererConfig';
+import type { AtmosphereRenderer } from '../rendering/AtmosphereRenderer';
+import type { NightLightRenderer } from '../rendering/NightLightRenderer';
 import { logger } from '../utils/Logger';
 import { eventBus } from '../utils/EventSystem';
 
@@ -22,6 +24,7 @@ export interface SystemStatus {
   sunSystem: unknown;
   cameraController: unknown;
   tileLoader: unknown;
+  earthRenderer: unknown;
   atmosphereRenderer: unknown;
   nightLightRenderer: unknown;
 }
@@ -50,6 +53,7 @@ export class Globe {
   private _tileLoader: TileLoader | null = null;
 
   // 渲染模块
+  private _earthRenderer: EarthRenderer | null = null;
   private _atmosphereRenderer: AtmosphereRenderer | null = null;
   private _nightLightRenderer: NightLightRenderer | null = null;
 
@@ -90,6 +94,8 @@ export class Globe {
 
       // 4. 初始化渲染模块
       await this._initializeRenderingModules();
+      // 4. 初始化地球渲染器
+      await this._initializeEarthRenderer();
 
       // 5. 初始化相机控制器
       await this._initializeCameraController();
@@ -132,6 +138,11 @@ export class Globe {
     if (this._cameraController) {
       this._cameraController.dispose();
       this._cameraController = null;
+    }
+
+    if (this._earthRenderer) {
+      this._earthRenderer.dispose();
+      this._earthRenderer = null;
     }
 
     if (this._nightLightRenderer) {
@@ -251,6 +262,13 @@ export class Globe {
   }
 
   /**
+   * 获取地球渲染器
+   */
+  public getEarthRenderer(): EarthRenderer | null {
+    return this._earthRenderer;
+  }
+
+  /**
    * 获取大气渲染器
    */
   public getAtmosphereRenderer(): AtmosphereRenderer | null {
@@ -295,6 +313,7 @@ export class Globe {
       sunSystem: this._sunSystem?.getStatus(),
       cameraController: this._cameraController?.getStatus(),
       tileLoader: this._tileLoader?.getStatus(),
+      earthRenderer: this._earthRenderer?.getStatus(),
       atmosphereRenderer: this._atmosphereRenderer?.getStatus(),
       nightLightRenderer: this._nightLightRenderer?.getStatus(),
     };
@@ -373,38 +392,32 @@ export class Globe {
     this._tileLoader = new TileLoader(this._config.tileLoader);
     await this._tileLoader.initialize();
 
-    // 添加默认数据源
-    const osmDataSource = DataSourceFactory.createOpenStreetMap();
-    this._tileLoader.addDataSource('osm', osmDataSource);
+    // 添加 ArcGIS 卫星影像数据源
+    const arcgisDataSource = DataSourceFactory.createArcGISSatellite();
+    this._tileLoader.addDataSource('arcgis', arcgisDataSource);
 
     logger.debug('TileLoader initialized', 'Globe');
   }
 
   /**
-   * 初始化渲染模块
+   * 初始化地球渲染器
    */
-  private async _initializeRenderingModules(): Promise<void> {
-    // 初始化大气渲染器
-    if (this._config.atmosphere?.enabled) {
-      this._atmosphereRenderer = new AtmosphereRenderer(
-        this._scene,
-        this._config.earthRadius ?? 6378137,
-        this._config.atmosphere
-      );
-      await this._atmosphereRenderer.initialize();
-    }
+  private async _initializeEarthRenderer(): Promise<void> {
+    logger.debug('Initializing EarthRenderer', 'Globe');
 
-    // 初始化夜间灯光渲染器
-    if (this._config.nightLight) {
-      this._nightLightRenderer = new NightLightRenderer(
-        this._scene,
-        this._config.earthRadius ?? 6378137,
-        this._config.nightLight
-      );
-      await this._nightLightRenderer.initialize();
-    }
+    // 创建地球渲染器配置
+    const earthRendererConfig = createEarthRendererConfig({
+      enabled: true,
+      enableTileTextures: true,
+      enableTerrainHeight: false, // 现阶段禁用
+      enableDayNightLighting: false, // 现阶段禁用
+    });
 
-    logger.debug('Rendering modules initialized', 'Globe');
+    // 创建地球渲染器
+    this._earthRenderer = new EarthRenderer(this._scene, this._camera, earthRendererConfig);
+    await this._earthRenderer.initialize();
+
+    logger.debug('EarthRenderer initialized', 'Globe');
   }
 
   /**
@@ -430,6 +443,11 @@ export class Globe {
           // 更新太阳系统
           if (this._sunSystem) {
             this._sunSystem.update(event.currentTime);
+          }
+
+          // 通知地球渲染器
+          if (this._earthRenderer) {
+            this._earthRenderer.onTimeChanged(event.currentTime);
           }
 
           // 通知夜间灯光渲染器
@@ -470,11 +488,17 @@ export class Globe {
         this._tileLoader.updateCameraPosition(this._camera.position);
       }
 
-      // 更新渲染器
+      // 更新地球渲染器
+      if (this._earthRenderer) {
+        this._earthRenderer.update(this._camera.position);
+      }
+
+      // 更新大气渲染器
       if (this._atmosphereRenderer && this._sunSystem) {
         this._atmosphereRenderer.update(this._camera.position, this._sunSystem.getSunDirection());
       }
 
+      // 更新夜间灯光渲染器
       if (this._nightLightRenderer && this._sunSystem) {
         this._nightLightRenderer.update(this._camera.position, this._sunSystem.getSunDirection());
       }
