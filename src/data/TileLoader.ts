@@ -469,7 +469,7 @@ export class TileLoader {
             x,
             y,
             z: zoom,
-            source: 'default',
+            source: 'arcgis',
             layer: 'base',
           });
         }

@@ -302,4 +302,16 @@ export class DataSourceFactory {
       format: 'image/png',
     });
   }
+
+  static createArcGISSatellite(): XYZDataSource {
+    return new XYZDataSource({
+      name: 'ArcGIS World Imagery',
+      type: 'xyz',
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      attribution: '© Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+      maxZoom: 19,
+      minZoom: 0,
+      format: 'image/jpeg',
+    });
+  }
 }
