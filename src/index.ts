@@ -13,8 +13,8 @@ export { SunSystem } from './core/SunSystem';
 export type { SunSystemConfig, LightIntensityConfig } from './core/SunSystem';
 
 // 相机模块
-export {
-  CameraController,
+export { CameraController } from './camera/CameraController';
+export type {
   CameraControllerConfig,
   InputConfig,
   ConstraintConfig,

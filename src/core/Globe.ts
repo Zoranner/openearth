@@ -3,7 +3,7 @@
  * 系统的核心控制器，负责系统的统一入口、生命周期管理、配置管理和时间系统管理
  */
 
-import { Engine, Scene, Vector3, Color4, ArcRotateCamera } from '@babylonjs/core';
+import { Engine, Scene, Vector3, Color4, ArcRotateCamera, ArcRotateCameraPointersInput } from '@babylonjs/core';
 import { TimeSystem, TimeEventType, type TimeEvent } from './TimeSystem';
 import { SunSystem } from './SunSystem';
 import { createGlobeConfig, type GlobeConfig } from './GlobeConfig';
@@ -92,13 +92,11 @@ export class Globe {
       // 3. 初始化瓦片加载器
       await this._initializeTileLoader();
 
-      // 4. 初始化渲染模块
-      await this._initializeRenderingModules();
       // 4. 初始化地球渲染器
       await this._initializeEarthRenderer();
 
-      // 5. 初始化相机控制器
-      await this._initializeCameraController();
+      // 5. 初始化相机控制器（现在使用Babylon.js内置控制）
+      // await this._initializeCameraController();
 
       // 6. 设置事件订阅
       this._setupEventSubscriptions();
@@ -337,13 +335,12 @@ export class Globe {
 
     // 创建相机
     const center = this._config.center ?? [0, 0];
-    const altitude = this._config.altitude ?? 2000000;
 
     this._camera = new ArcRotateCamera(
       'camera',
       (center[0] * Math.PI) / 180,
       ((90 - center[1]) * Math.PI) / 180,
-      altitude / (this._config.earthRadius ?? 6378137),
+      3, // 距离地球中心3个单位（地球半径为1，使用标准化坐标）
       Vector3.Zero(),
       this._scene
     );
@@ -351,15 +348,25 @@ export class Globe {
     // 设置相机参数
     this._camera.minZ = 0.1;
     this._camera.maxZ = 1000;
+
+    // 启用相机控制以获得平滑效果
     this._camera.attachControl(this._canvas, true);
 
+    // 移除默认的指针输入
+    this._camera.inputs.remove(this._camera.inputs.attached.pointers);
+
+    // 添加自定义的指针输入，只监听中键
+    const customMouseInput = new ArcRotateCameraPointersInput();
+    customMouseInput.buttons = [1]; // 只监听鼠标中键（1）
+    this._camera.inputs.add(customMouseInput);
+
+    // 调整滚轮缩放敏感度，让地球场景的缩放更平缓
+    this._camera.wheelDeltaPercentage = 0.01; // 默认值通常是0.1，降低到0.01让缩放更慢
+    this._camera.wheelPrecision = 100; // 默认值通常是3，提高到100让缩放更精细
+
     // 设置相机约束
-    if (this._config.minZoom !== undefined) {
-      this._camera.lowerRadiusLimit = this._config.minZoom;
-    }
-    if (this._config.maxZoom !== undefined) {
-      this._camera.upperRadiusLimit = this._config.maxZoom;
-    }
+    this._camera.lowerRadiusLimit = 1.5; // 最近距离：地球半径的1.5倍
+    this._camera.upperRadiusLimit = 10; // 最远距离：地球半径的10倍
 
     logger.debug('Babylon.js initialized', 'Globe', {
       antialias: this._config.antialias,
@@ -478,10 +485,10 @@ export class Globe {
         this._timeSystem.update(deltaTime);
       }
 
-      // 更新相机控制器
-      if (this._cameraController) {
-        this._cameraController.update();
-      }
+      // 更新相机控制器（现在使用Babylon.js内置控制）
+      // if (this._cameraController) {
+      //   this._cameraController.update();
+      // }
 
       // 更新瓦片加载器
       if (this._tileLoader) {

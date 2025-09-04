@@ -170,7 +170,7 @@ export const defaultGlobeConfig: Omit<GlobeConfig, 'container'> = {
   maxZoom: 18,
   center: [120.1551, 30.2741], // 杭州坐标
   altitude: 1000000,
-  earthRadius: 6378137,
+  earthRadius: 6378.137, // 真实地球半径缩小1000倍 (6378137m / 1000)
   antialias: true,
   adaptToDeviceRatio: true,
 
@@ -296,7 +296,7 @@ export const defaultGlobeConfig: Omit<GlobeConfig, 'container'> = {
       maxPolarAngle: 3.04,
     },
     collision: {
-      earthRadius: 6378137,
+      earthRadius: 6378.137, // 真实地球半径缩小1000倍 (6378137m / 1000)
       minAltitude: 1.2,
       maxAltitude: 10.0,
     },

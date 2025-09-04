@@ -132,14 +132,16 @@ class InputHandler {
 
       switch (pointerInfo.type) {
         case PointerEventTypes.POINTERDOWN:
-          if (pointerInfo.event.button === 0) {
-            // 左键
+          if (pointerInfo.event.button === 1) {
+            // 中键 - 用于旋转
             this._isDragging = true;
             this._lastPointerPosition = {
               x: pointerInfo.event.clientX,
               y: pointerInfo.event.clientY,
             };
           }
+          // 左键暂时留空，不处理任何操作
+          // 右键也不处理，移除平移功能
           break;
 
         case PointerEventTypes.POINTERUP:
