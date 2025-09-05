@@ -88,8 +88,15 @@ void main() {
     }
 
     // 计算经线和纬线的强度
-    float meridianStrength = calculateGridLine(longitude, gridStep);
-    float parallelStrength = calculateGridLine(latitude, gridStep);
+    float meridianStrength = 0.0;
+    float parallelStrength = 0.0;
+
+    // 只在低纬度区域计算经线，避免极地性能问题
+    float latitudeAbs = abs(latitude);
+    if (latitudeAbs < min(90.0 - gridStep, 80.0)) {
+        meridianStrength = calculateGridLine(longitude, gridStep);  // 经线
+        parallelStrength = calculateGridLine(latitude, gridStep);  // 纬线
+    }
 
     // 合并网格线强度
     float totalGridStrength = max(meridianStrength, parallelStrength);
