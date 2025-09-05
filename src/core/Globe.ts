@@ -355,9 +355,9 @@ export class Globe {
     // 移除默认的指针输入
     this._camera.inputs.remove(this._camera.inputs.attached.pointers);
 
-    // 添加自定义的指针输入，只监听中键
+    // 添加自定义的指针输入，只监听左键
     const customMouseInput = new ArcRotateCameraPointersInput();
-    customMouseInput.buttons = [1]; // 只监听鼠标中键（1）
+    customMouseInput.buttons = [0]; // 只监听鼠标左键（0）
     this._camera.inputs.add(customMouseInput);
 
     // 调整滚轮缩放敏感度，让地球场景的缩放更平缓

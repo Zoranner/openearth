@@ -9,7 +9,6 @@ import {
   EasingFunction,
   CircleEase,
   PointerEventTypes,
-  KeyboardEventTypes,
   type ArcRotateCamera,
   type Scene,
 } from '@babylonjs/core';
@@ -19,7 +18,6 @@ import { logger } from '../utils/Logger';
 
 export interface CameraControllerConfig {
   enableMouse?: boolean;
-  enableKeyboard?: boolean;
   enableWheel?: boolean;
   sensitivity?: number;
   constraints?: ConstraintConfig;
@@ -31,7 +29,6 @@ export interface InputConfig {
   sensitivity?: number;
   enableDrag?: boolean;
   enableWheel?: boolean;
-  enableKeyboard?: boolean;
 }
 
 export interface ConstraintConfig {
@@ -71,7 +68,6 @@ class InputHandler {
   private _lastPointerPosition: { x: number; y: number } | null = null;
   private _onPointerMove: ((deltaX: number, deltaY: number) => void) | undefined;
   private _onWheel: ((delta: number) => void) | undefined;
-  private _onKeyboard: ((key: string, pressed: boolean) => void) | undefined;
 
   constructor(scene: Scene, canvas: HTMLCanvasElement, config: InputConfig) {
     this._scene = scene;
@@ -80,7 +76,6 @@ class InputHandler {
       sensitivity: 1.0,
       enableDrag: true,
       enableWheel: true,
-      enableKeyboard: true,
       ...config,
     };
     this._isEnabled = false;
@@ -92,9 +87,6 @@ class InputHandler {
     }
     if (this._config.enableWheel) {
       this._setupWheelEvents();
-    }
-    if (this._config.enableKeyboard) {
-      this._setupKeyboardEvents();
     }
 
     logger.debug('InputHandler initialized', 'InputHandler', { config: this._config });
@@ -119,11 +111,9 @@ class InputHandler {
   setCallbacks(callbacks: {
     onPointerMove?: (deltaX: number, deltaY: number) => void;
     onWheel?: (delta: number) => void;
-    onKeyboard?: (key: string, pressed: boolean) => void;
   }): void {
     this._onPointerMove = callbacks.onPointerMove ?? undefined;
     this._onWheel = callbacks.onWheel ?? undefined;
-    this._onKeyboard = callbacks.onKeyboard ?? undefined;
   }
 
   private _setupPointerEvents(): void {
@@ -132,16 +122,15 @@ class InputHandler {
 
       switch (pointerInfo.type) {
         case PointerEventTypes.POINTERDOWN:
-          if (pointerInfo.event.button === 1) {
-            // 中键 - 用于旋转
+          if (pointerInfo.event.button === 0) {
+            // 左键 - 用于旋转
             this._isDragging = true;
             this._lastPointerPosition = {
               x: pointerInfo.event.clientX,
               y: pointerInfo.event.clientY,
             };
           }
-          // 左键暂时留空，不处理任何操作
-          // 右键也不处理，移除平移功能
+          // 中键和右键暂时留空，不处理任何操作
           break;
 
         case PointerEventTypes.POINTERUP:
@@ -182,16 +171,6 @@ class InputHandler {
     );
   }
 
-  private _setupKeyboardEvents(): void {
-    this._scene.onKeyboardObservable.add(keyboardInfo => {
-      if (!this._isEnabled || !this._onKeyboard) return;
-
-      const key = keyboardInfo.event.key;
-      const pressed = keyboardInfo.type === KeyboardEventTypes.KEYDOWN;
-
-      this._onKeyboard(key, pressed);
-    });
-  }
 }
 
 /**
@@ -408,7 +387,6 @@ export class CameraController {
     this._camera = camera;
     this._config = {
       enableMouse: config.enableMouse !== false,
-      enableKeyboard: config.enableKeyboard !== false,
       enableWheel: config.enableWheel !== false,
       sensitivity: config.sensitivity ?? 1.0,
       constraints: {
@@ -440,7 +418,6 @@ export class CameraController {
       sensitivity: this._config.sensitivity,
       enableDrag: this._config.enableMouse,
       enableWheel: this._config.enableWheel,
-      enableKeyboard: this._config.enableKeyboard,
     });
 
     this._animationManager = new AnimationManager(scene, camera);
@@ -468,7 +445,6 @@ export class CameraController {
       this._inputHandler.setCallbacks({
         onPointerMove: (deltaX, deltaY) => this._handlePointerMove(deltaX, deltaY),
         onWheel: delta => this._handleWheel(delta),
-        onKeyboard: (key, pressed) => this._handleKeyboard(key, pressed),
       });
 
       // 启用输入处理
@@ -604,31 +580,6 @@ export class CameraController {
     this._camera.radius = clampedRadius;
   }
 
-  /**
-   * 处理键盘事件
-   */
-  private _handleKeyboard(key: string, pressed: boolean): void {
-    if (!pressed) return;
-
-    const moveSpeed = 0.1;
-    const minDistance = this._config.constraints?.minDistance ?? 1;
-    const maxDistance = this._config.constraints?.maxDistance ?? 1000000;
-
-    switch (key.toLowerCase()) {
-      case 'w':
-        this._camera.radius = Math.max(this._camera.radius - moveSpeed, minDistance);
-        break;
-      case 's':
-        this._camera.radius = Math.min(this._camera.radius + moveSpeed, maxDistance);
-        break;
-      case 'a':
-        this._camera.alpha -= moveSpeed;
-        break;
-      case 'd':
-        this._camera.alpha += moveSpeed;
-        break;
-    }
-  }
 
   /**
    * 获取系统状态
