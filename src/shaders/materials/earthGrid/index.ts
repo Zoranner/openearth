@@ -21,7 +21,13 @@ export const earthGridShaderConfig = {
     'zeroLineColor',
     'gridOpacity',
     'lineWidth',
+    'diffuseMap',
+    'diffuseOpacity',
+    'gridEnabled',
+    'atlasOrigin',
+    'atlasScale',
   ],
+  samplers: ['diffuseMap'],
 };
 
 // 导出默认配置
@@ -31,4 +37,6 @@ export const defaultEarthGridConfig = {
   zeroLineColor: [1.0, 1.0, 0.0] as [number, number, number], // 亮黄色
   gridOpacity: 0.8,
   lineWidth: 1.0,
+  diffuseOpacity: 0.0,
+  gridEnabled: 1.0,
 };

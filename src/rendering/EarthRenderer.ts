@@ -5,6 +5,7 @@
  */
 
 import { Vector3, type Scene, type Camera } from '@babylonjs/core';
+import type { TileKey } from '../types';
 import { TileTextureRenderer, createTileTextureRendererConfig } from './TileTextureRenderer';
 import { TerrainHeightSystem, createTerrainHeightSystemConfig } from '../terrain/TerrainHeightSystem';
 import type { NightLightRenderer } from './NightLightRenderer';
@@ -38,6 +39,7 @@ export class EarthRenderer {
         enabled: this._config.enableTileTextures,
       })
     );
+    // 注入 TileLoader：由 Globe 在初始化后设置
 
     this._terrainHeightSystem = new TerrainHeightSystem(
       this._scene,
@@ -142,6 +144,8 @@ export class EarthRenderer {
     }
   }
 
+
+
   /**
    * 响应时间变化事件
    * @param time 当前时间
@@ -159,6 +163,22 @@ export class EarthRenderer {
     logger.debug('EarthRenderer time changed', 'EarthRenderer', {
       time: time.toISOString(),
     });
+  }
+
+  /**
+   * 设置当前应显示的瓦片集合（转发给 TileTextureRenderer，占位）
+   */
+  public setVisibleTiles(tiles: TileKey[]): void {
+    if (!this._isInitialized || !this._config.enabled) return;
+    if (this._config.enableTileTextures) {
+      this._tileTextureRenderer.setVisibleTiles(tiles as unknown as {
+        x: number;
+        y: number;
+        z: number;
+        source: string;
+        layer: string;
+      }[]);
+    }
   }
 
   /**

@@ -12,6 +12,8 @@ export interface EarthGridUniforms extends ShaderUniforms {
   zeroLineColor: [number, number, number];
   gridOpacity: number;
   lineWidth: number;
+  diffuseOpacity?: number;
+  gridEnabled?: number;
 }
 
 export interface ShaderMaterialConfig {
@@ -29,4 +31,6 @@ export interface GridShaderConfig {
   zeroLineColor?: [number, number, number];
   gridOpacity?: number;
   lineWidth?: number;
+  diffuseOpacity?: number;
+  gridEnabled?: number;
 }

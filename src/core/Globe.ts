@@ -423,6 +423,10 @@ export class Globe {
     // 创建地球渲染器
     this._earthRenderer = new EarthRenderer(this._scene, this._camera, earthRendererConfig);
     await this._earthRenderer.initialize();
+    // 将 TileLoader 注入瓦片贴图渲染器
+    if (this._tileLoader) {
+      this._earthRenderer.getTileTextureRenderer().setTileLoader(this._tileLoader);
+    }
 
     logger.debug('EarthRenderer initialized', 'Globe');
   }
@@ -493,6 +497,11 @@ export class Globe {
       // 更新瓦片加载器
       if (this._tileLoader) {
         this._tileLoader.updateCameraPosition(this._camera.position);
+        // 查询可见瓦片并转发给地球渲染器（占位链路）
+        const visible = this._tileLoader.getVisibleTiles(this._camera.position, 'arcgis', 'base');
+        if (this._earthRenderer) {
+          this._earthRenderer.setVisibleTiles(visible);
+        }
       }
 
       // 更新地球渲染器

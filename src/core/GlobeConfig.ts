@@ -193,6 +193,13 @@ export const defaultGlobeConfig: Omit<GlobeConfig, 'container'> = {
     timeout: 30000,
     maxMemory: 256 * 1024 * 1024, // 256MB
     dataSources: [],
+    // LOD/可见性配置
+    minZoom: 0,
+    maxZoom: 18,
+    preloadRings: 2,
+    normalizedEarthRadius: 1.0,
+    zoomBase: 20,
+    zoomScaleK: 1.0,
   },
 
   tileTexture: {

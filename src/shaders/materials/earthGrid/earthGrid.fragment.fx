@@ -19,6 +19,11 @@ uniform vec3 gridColor;
 uniform vec3 zeroLineColor;
 uniform float gridOpacity;
 uniform float lineWidth;
+uniform sampler2D diffuseMap;
+uniform float diffuseOpacity; // 0..1, 0表示禁用纹理
+uniform float gridEnabled;    // 0或1，控制是否显示网格
+uniform vec2 atlasOrigin;     // 合成纹理在Mercator归一化空间的原点（0..1）
+uniform vec2 atlasScale;      // 合成纹理覆盖范围尺寸（0..1）
 
 // 将3D世界坐标转换为经纬度（度数）
 vec2 worldToLatLon(vec3 worldPos) {
@@ -111,8 +116,24 @@ void main() {
     bool isZero = (abs(longitude) < 0.5) || (abs(latitude) < 0.5);
     vec3 finalGridColor = isZero ? zeroLineColor : gridColor;
 
-    // 混合基础颜色和网格颜色
-    vec3 finalColor = mix(baseColor, finalGridColor, totalGridStrength * gridOpacity);
+    // 采样底图纹理（Web Mercator），与基础色混合
+    vec3 baseCol = baseColor;
+    if (diffuseOpacity > 0.0) {
+        float phi = latitude * PI / 180.0;
+        float mercX = (longitude + 180.0) / 360.0;
+        float mercY = (1.0 - log(tan(phi) + 1.0 / cos(phi)) / PI) * 0.5;
+        vec2 uvMerc = vec2(clamp(mercX, 0.0, 1.0), clamp(mercY, 0.0, 1.0));
+        // 将全局Mercator坐标映射到合成纹理的局部坐标
+        vec2 uvLocal = (uvMerc - atlasOrigin) / max(atlasScale, vec2(1e-6));
+        if (uvLocal.x >= 0.0 && uvLocal.x <= 1.0 && uvLocal.y >= 0.0 && uvLocal.y <= 1.0) {
+            vec3 texCol = texture2D(diffuseMap, uvLocal).rgb;
+            baseCol = mix(baseCol, texCol, clamp(diffuseOpacity, 0.0, 1.0));
+        }
+    }
+
+    // 先得到底色，再将网格覆盖在上层
+    float gridMix = totalGridStrength * gridOpacity * gridEnabled;
+    vec3 finalColor = mix(baseCol, finalGridColor, clamp(gridMix, 0.0, 1.0));
 
     gl_FragColor = vec4(finalColor, 1.0);
 }

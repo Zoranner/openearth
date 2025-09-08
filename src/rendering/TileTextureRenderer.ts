@@ -10,10 +10,14 @@ import {
   MeshBuilder,
   HemisphericLight,
   DirectionalLight,
+  Texture,
+  DynamicTexture,
   type Scene,
   type Mesh,
   type StandardMaterial,
 } from '@babylonjs/core';
+import type { TileKey } from '../types';
+import type { TileLoader } from '../data/TileLoader';
 import { EarthGridMaterial } from '../shaders/materials/EarthGridMaterial';
 import { logger } from '../utils/Logger';
 
@@ -79,6 +83,9 @@ export class TileTextureRenderer {
   // 纹理相关
   private _activeTextureCount = 0;
   private _cachedTextureCount = 0;
+  private _visibleTileKeys: { x: number; y: number; z: number; source: string; layer: string }[] = [];
+  private _tileLoader: TileLoader | null = null;
+  private _compositedTexture: DynamicTexture | null = null;
 
   constructor(scene: Scene, config: TileTextureRendererConfig) {
     this._scene = scene;
@@ -89,6 +96,11 @@ export class TileTextureRenderer {
       earthRadius: this._config.earthRadius,
       segments: this._config.segments,
     });
+  }
+
+  /** 注入 TileLoader */
+  public setTileLoader(loader: TileLoader): void {
+    this._tileLoader = loader;
   }
 
   /**
@@ -173,8 +185,85 @@ export class TileTextureRenderer {
       this._earthGridMaterial.updateCameraPosition(cameraPosition);
     }
 
-    // 现阶段暂时不需要其他更新逻辑
-    // 后续可以在这里添加LOD计算、瓦片加载等逻辑
+    // 合成纹理（占位：简单拼贴）
+    this._compositeTilesIfReady();
+  }
+
+  /**
+   * 设置当前应显示的瓦片集合（占位：仅记录，不实际贴图）
+   */
+  public setVisibleTiles(tiles: { x: number; y: number; z: number; source: string; layer: string }[]): void {
+    this._visibleTileKeys = tiles;
+    // TODO: 合成瓦片纹理并更新到 EarthGridMaterial 的 diffuseMap
+    // 先占位：当有材质时，打开纹理显示与网格开关默认开启
+    if (this._earthGridMaterial) {
+      this._earthGridMaterial.updateConfig({ diffuseOpacity: 1.0, gridEnabled: 1.0 });
+    }
+  }
+
+  /**
+   * 将可见瓦片合成到一张动态纹理（简单拼贴，后续可替换为更优方案）
+   */
+  private _compositeTilesIfReady(): void {
+    if (!this._earthGridMaterial || !this._tileLoader) return;
+    if (this._visibleTileKeys.length === 0) return;
+
+    const sampleZoom = this._visibleTileKeys[0].z;
+    const tileSize = 256;
+    // 计算当前可见瓦片范围（同一zoom）
+    const sameZoomTiles = this._visibleTileKeys.filter(t => t.z === sampleZoom);
+    if (sameZoomTiles.length === 0) return;
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const t of sameZoomTiles) {
+      if (t.x < minX) minX = t.x;
+      if (t.x > maxX) maxX = t.x;
+      if (t.y < minY) minY = t.y;
+      if (t.y > maxY) maxY = t.y;
+    }
+    const gridW = Math.max(1, maxX - minX + 1);
+    const gridH = Math.max(1, maxY - minY + 1);
+    const canvasW = tileSize * gridW;
+    const canvasH = tileSize * gridH;
+
+    if (!this._compositedTexture || this._compositedTexture.getSize().width !== canvasW || this._compositedTexture.getSize().height !== canvasH) {
+      this._compositedTexture = new DynamicTexture('tiles-composited', { width: canvasW, height: canvasH }, this._scene, false);
+    }
+
+    const ctx = this._compositedTexture.getContext();
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvasW, canvasH);
+
+    const center = sameZoomTiles[0] as TileKey;
+    for (let ty = 0; ty < gridH; ty++) {
+      for (let tx = 0; tx < gridW; tx++) {
+        const x = minX + tx;
+        const y = minY + ty;
+        const tile: TileKey = { x, y, z: sampleZoom, source: center.source, layer: center.layer } as TileKey;
+        const cached = this._tileLoader.getCachedTile(tile);
+        if (cached && cached.data) {
+          try {
+            const blob = new Blob([cached.data], { type: 'image/jpeg' });
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.src = URL.createObjectURL(blob);
+            img.onload = () => {
+              ctx.drawImage(img, tx * tileSize, ty * tileSize, tileSize, tileSize);
+              this._compositedTexture!.update(false);
+              this._earthGridMaterial!.setDiffuseTexture(this._compositedTexture!);
+              URL.revokeObjectURL(img.src);
+            };
+          } catch {}
+        }
+      }
+    }
+
+    // 设置合成纹理在全局Mercator空间的范围（归一化）
+    const tilesPerWorld = Math.pow(2, sampleZoom);
+    const originX = minX / tilesPerWorld;
+    const originY = minY / tilesPerWorld;
+    const scaleX = gridW / tilesPerWorld;
+    const scaleY = gridH / tilesPerWorld;
+    this._earthGridMaterial.setAtlasTransform([originX, originY], [scaleX, scaleY]);
   }
 
   /**
@@ -290,6 +379,16 @@ export class TileTextureRenderer {
 
     // 应用shader材质到球体
     this._earthSphere.material = this._earthGridMaterial.getMaterial();
+
+    // 占位：加载一张全局纹理验证贴图链路（后续将由瓦片合成纹理替代）
+    try {
+      const placeholder = new Texture('assets/night.png', this._scene, true, false);
+      this._earthGridMaterial.setDiffuseTexture(placeholder);
+      this._earthGridMaterial.updateConfig({ diffuseOpacity: 1.0, gridEnabled: 1.0 });
+      logger.debug('Placeholder texture applied', 'TileTextureRenderer');
+    } catch (e) {
+      logger.warn('Failed to load placeholder texture', 'TileTextureRenderer', e as Error);
+    }
 
     logger.debug('Earth sphere created', 'TileTextureRenderer', {
       radius: this._config.earthRadius,

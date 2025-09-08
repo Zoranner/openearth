@@ -9,6 +9,7 @@ import type { DataSource } from './DataSource';
 import { TileCache, type Tile } from './TileCache';
 import { networkManager } from '../utils/NetworkManager';
 import { logger } from '../utils/Logger';
+import { TileLodSelector } from './TileLodSelector';
 
 export interface TileLoaderConfig {
   maxCacheSize?: number;
@@ -18,6 +19,13 @@ export interface TileLoaderConfig {
   timeout?: number;
   dataSources?: DataSourceConfig[];
   maxMemory?: number;
+  // LOD/可见性配置
+  minZoom?: number;
+  maxZoom?: number;
+  preloadRings?: number;
+  normalizedEarthRadius?: number;
+  zoomBase?: number;
+  zoomScaleK?: number;
 }
 
 export interface DataSourceConfig {
@@ -184,6 +192,7 @@ export class TileLoader {
   private _dataSources: Map<string, DataSource>;
   private _isInitialized: boolean;
   private _config: Required<TileLoaderConfig>;
+  private _lodSelector: TileLodSelector;
 
   constructor(config: TileLoaderConfig = {}) {
     this._config = {
@@ -194,12 +203,26 @@ export class TileLoader {
       timeout: config.timeout ?? 30000,
       dataSources: config.dataSources ?? [],
       maxMemory: config.maxMemory ?? 256 * 1024 * 1024, // 256MB
+      minZoom: config.minZoom ?? 0,
+      maxZoom: config.maxZoom ?? 18,
+      preloadRings: config.preloadRings ?? 2,
+      normalizedEarthRadius: config.normalizedEarthRadius ?? 1.0,
+      zoomBase: config.zoomBase ?? 20,
+      zoomScaleK: config.zoomScaleK ?? 1.0,
     };
 
     this._cache = new TileCache(this._config.maxCacheSize, this._config.maxMemory);
     this._queue = new LoadingQueue(this._config.maxConcurrentLoads);
     this._dataSources = new Map();
     this._isInitialized = false;
+    this._lodSelector = new TileLodSelector({
+      minZoom: this._config.minZoom,
+      maxZoom: this._config.maxZoom,
+      preloadRings: this._config.preloadRings,
+      normalizedEarthRadius: this._config.normalizedEarthRadius,
+      zoomBase: this._config.zoomBase,
+      zoomScaleK: this._config.zoomScaleK,
+    });
 
     // 设置网络管理器参数
     networkManager.setMaxConcurrentRequests(this._config.maxConcurrentLoads);
@@ -301,6 +324,14 @@ export class TileLoader {
   }
 
   /**
+   * 从缓存获取瓦片（如未命中返回null）
+   */
+  getCachedTile(tileKey: TileKey): Tile | null {
+    const key = TileKeyUtils.toString(tileKey);
+    return this._cache.get(key);
+  }
+
+  /**
    * 清空缓存
    */
   clearCache(): void {
@@ -312,9 +343,9 @@ export class TileLoader {
    * 更新相机位置
    */
   updateCameraPosition(position: Vector3): void {
-    // 根据相机位置计算可见瓦片并预加载
-    const visibleTiles = this._calculateVisibleTiles(position);
-    this.preloadTiles(visibleTiles);
+    // 根据相机位置选择可见瓦片并预加载
+    const selection = this._lodSelector.selectVisible(position, 'arcgis', 'base');
+    this.preloadTiles(selection.tiles);
   }
 
   /**
@@ -445,50 +476,10 @@ export class TileLoader {
   /**
    * 计算可见瓦片
    */
-  private _calculateVisibleTiles(cameraPosition: Vector3): TileKey[] {
-    // 这里是一个简化的实现
-    // 实际应该根据相机的视锥体和地球表面计算可见的瓦片
-    const visibleTiles: TileKey[] = [];
-
-    // 根据相机距离确定LOD级别
-    const distance = cameraPosition.length();
-    const zoom = Math.max(0, Math.min(18, Math.floor(20 - Math.log2(distance / 1000))));
-
-    // 计算相机对应的瓦片坐标
-    const centerTile = this._worldToTile(cameraPosition, zoom);
-
-    // 计算周围的瓦片
-    const radius = 2; // 加载半径
-    for (let dx = -radius; dx <= radius; dx++) {
-      for (let dy = -radius; dy <= radius; dy++) {
-        const x = centerTile.x + dx;
-        const y = centerTile.y + dy;
-
-        if (x >= 0 && y >= 0 && x < Math.pow(2, zoom) && y < Math.pow(2, zoom)) {
-          visibleTiles.push({
-            x,
-            y,
-            z: zoom,
-            source: 'arcgis',
-            layer: 'base',
-          });
-        }
-      }
-    }
-
-    return visibleTiles;
-  }
-
-  /**
-   * 世界坐标转瓦片坐标
-   */
-  private _worldToTile(position: Vector3, zoom: number): { x: number; y: number } {
-    // 简化的坐标转换
-    const tileCount = Math.pow(2, zoom);
-    const x = Math.floor(((position.x + 1) * tileCount) / 2);
-    const y = Math.floor(((1 - position.z) * tileCount) / 2);
-
-    return { x, y };
+  // 兼容外部查询：返回当前位置应展示的瓦片集合（不触发加载）
+  public getVisibleTiles(position: Vector3, source = 'arcgis', layer = 'base'): TileKey[] {
+    const selection = this._lodSelector.selectVisible(position, source, layer);
+    return selection.tiles;
   }
 
   /**

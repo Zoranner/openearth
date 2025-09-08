@@ -27,7 +27,7 @@ void main() {
     // 传递法线
     vNormal = normalize((world * vec4(normal, 0.0)).xyz);
 
-    // 传递UV坐标
+    // 传递UV坐标（沿用默认 equirectangular 展开）
     vUV = uv;
 
     // 传递相机位置

@@ -3,7 +3,7 @@
  * 使用自定义着色器实现程序化网格效果
  */
 
-import { ShaderMaterial, Vector3, type Scene } from '@babylonjs/core';
+import { ShaderMaterial, Vector3, Texture, type Scene } from '@babylonjs/core';
 import { ShaderUtils } from './ShaderUtils';
 import type { GridShaderConfig, EarthGridUniforms } from '../types';
 import { logger } from '../../utils/Logger';
@@ -15,6 +15,9 @@ export class EarthGridMaterial {
   private _material!: ShaderMaterial;
   private _scene: Scene;
   private _config: Required<GridShaderConfig>;
+  private _diffuseTexture: Texture | null = null;
+  private _atlasOrigin: [number, number] = [0, 0];
+  private _atlasScale: [number, number] = [1, 1];
 
   constructor(scene: Scene, config: GridShaderConfig = {}) {
     this._scene = scene;
@@ -72,6 +75,8 @@ export class EarthGridMaterial {
       zeroLineColor: this._config.zeroLineColor,
       gridOpacity: this._config.gridOpacity,
       lineWidth: this._config.lineWidth,
+      diffuseOpacity: this._config.diffuseOpacity ?? 1.0,
+      gridEnabled: this._config.gridEnabled ?? 1.0,
     };
 
     // 设置向量uniform
@@ -82,6 +87,10 @@ export class EarthGridMaterial {
     // 设置标量uniform
     this._material.setFloat('gridOpacity', uniforms.gridOpacity);
     this._material.setFloat('lineWidth', uniforms.lineWidth);
+    this._material.setFloat('diffuseOpacity', uniforms.diffuseOpacity ?? 1.0);
+    this._material.setFloat('gridEnabled', uniforms.gridEnabled ?? 1.0);
+    this._material.setVector2('atlasOrigin', { x: this._atlasOrigin[0], y: this._atlasOrigin[1] } as any);
+    this._material.setVector2('atlasScale', { x: this._atlasScale[0], y: this._atlasScale[1] } as any);
   }
 
   /**
@@ -105,6 +114,27 @@ export class EarthGridMaterial {
    */
   public updateCameraPosition(cameraPosition: Vector3): void {
     this._material.setVector3('cameraPosition', cameraPosition);
+  }
+
+  /**
+   * 设置底图纹理（瓦片合成纹理）
+   */
+  public setDiffuseTexture(texture: Texture | null): void {
+    this._diffuseTexture = texture;
+    if (texture) {
+      this._material.setTexture('diffuseMap', texture);
+    }
+  }
+
+  /**
+   * 设置合成纹理在Mercator空间的范围
+   * origin与scale为[0,1]归一化坐标
+   */
+  public setAtlasTransform(origin: [number, number], scale: [number, number]): void {
+    this._atlasOrigin = origin;
+    this._atlasScale = scale;
+    this._material.setVector2('atlasOrigin', { x: origin[0], y: origin[1] } as any);
+    this._material.setVector2('atlasScale', { x: scale[0], y: scale[1] } as any);
   }
 
   /**
